@@ -1,0 +1,122 @@
+{% extends 'manage/m_base.html' %}
+{% block title %}{{ website_title }}{% endblock %}
+{% block javascript %}
+function checkPassword() {
+    var new_pwd = document.getElementById("new_pwd").value;
+    var match_pwd = document.getElementById("match_pwd").value;
+    var matchText = document.getElementById("matchText");
+
+    // 两次密码输入相同
+    if(new_pwd === match_pwd) {
+        submitButton.disabled = false;
+        matchText.innerHTML = "";
+    // 判断新密码是否为空
+    } else if (new_pwd === "") {
+        submitButton.disabled = true;
+        matchText.innerHTML = "请输入新密码!";
+    // 两次密码输入不相同
+    } else {
+        submitButton.disabled = true;
+        matchText.innerHTML = "密码输入不一致!";
+    }
+}
+
+    function checkInputs() {
+            var old_pwd = document.getElementById("old_pwd").value;
+            var new_pwd = document.getElementById("new_pwd").value;
+
+            if(old_pwd === "") {
+                alert("旧密码不为空");
+                return false; // 阻止表单提交
+            }
+
+            if(new_pwd === "") {
+                alert("新密码不能为空");
+                return false; // 阻止表单提交
+            }
+
+            return true; // 允许表单提交
+    }
+
+    function checkold() {
+    var old_pwd = document.getElementById("old_pwd").value;
+    var oldText = document.getElementById("oldText").value;
+
+    if(old_pwd === "") {
+        submitButton.disabled = true;
+        oldText.innerHTML = "请输入旧密码!";
+    }
+}
+{% endblock %}
+
+<!--  main  -->
+{% block main %}
+    <div class="main-wrap">
+        <div class="crumb-wrap">
+            <div class="crumb-list"><i class="icon-font"></i><a href="{{ url_for("blue_manage.index") }}">首页</a><span class="crumb-step">&gt;</span><span class="crumb-name">用户设置</span></div>
+        </div>
+        <div class="result-wrap">
+            <form action="#" method="post">
+                <div class="config-items">
+                    {% for temp in users %}
+                    <div class="config-title">
+                        <h1><i class="icon-font">&#xe014;</i>用户管理：{{ temp.name }}</h1>
+                    </div>
+                    <div class="result-content">
+                        <table width="100%" class="insert-tab">
+                                <tr>
+                                    <th width="15%"><i class="require-red"></i>账号：</th>
+                                    <td><input type="text" id="user" size="70" name="username" class="common-text" value="{{ temp.username }}" readonly="readonly"></td>
+                                </tr>
+                                <tr>
+                                    <th><i class="require-red"></i>昵称：</th>
+                                    <td><input type="text" id="name" value="{{ temp.name }}" size="70" name="name" class="common-text"></td>
+                                </tr>
+                                <tr>
+                                    <th><i class="require-red"></i>邮箱：</th>
+                                    <td><input type="email" id="email" value="{{ temp.email }}" placeholder="name@example.com" size="70" name="email" class="common-text"></td>
+                                </tr>
+                                <tr>
+                                    <th><i class="require-red"></i>描述：</th>
+                                    <td><input type="text"  value="{{ temp.desc }}" size="70" name="desc" class="common-text"></td>
+                                </tr>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <div class="config-items">
+                    <div class="config-title">
+                        <h1><i class="icon-font">&#xe003;</i>用户管理：修改密码</h1>
+                    </div>
+                    <div class="result-content">
+                        <table width="100%" class="insert-tab">
+                            <tr>
+                                <th width="15%"><i class="require-red"></i>密码：</th>
+                                <td><input type="password" value="" size="70" name="old_pwd" id="old_pwd" class="common-text" onkeyup="checkPassword()"><p id="oldText" style="color: red;"></p></td>
+                            </tr>
+
+                            <tr>
+                                <th width="15%"><i class="require-red"></i>新密码：</th>
+                                <td><input type="password" value="" size="70" name="new_pwd" id="new_pwd" class="common-text" onkeyup="checkPassword()"></td>
+                            </tr>
+
+                            <tr>
+                                <th width="15%"><i class="require-red"></i>确认密码：</th>
+                                <td><input type="password" value="" size="70" name="match_pwd" id="match_pwd" class="common-text" onkeyup="checkPassword()"><p id="matchText" style="color: red;"></p></td>
+                            </tr>
+                            <tr>
+                                <th></th>
+                                <td>
+                                    <input type="submit" value="提交" id="submitButton" class="btn btn-primary btn6 mr10" onclick="checkInputs()">
+                                    <a href="{{ url_for("blue_manage.index") }}"><input type="button" value="返回" class="btn btn6"></a>
+                                    <p style="color: red;">{{ msg }}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
