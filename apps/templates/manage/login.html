@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>{{ website_title }}『后台管理』</title>
+	<link rel="stylesheet" type="text/css" href="../../static/css/admin_login.css"/>
+    <link rel="shortcut icon" type="image/x-icon" href="../../static/images/favicon.ico" />
+</head>
+
+<body background='../../static/images/backdrop.jpg'>
+    <div class="box">
+        <h2 style="color: #ffffff;">{{ website_title }}『后台管理』</h2>
+        <div class="input-box">
+            <form class="input-box" method="post">
+                <label style="color: #ffffff">账号</label>
+                <input type="text" name="username" value="admin"/>
+                <label style="color: #ffffff">密码</label>
+                <input type="password" name="password" value="admin@123"/>
+
+                <div class="btn-box">
+                    <a href="/change_passwd" target="_blank">忘记密码</a>
+                    <div>
+                        <input type="submit" name="login" value="登录">
+                        <input type="submit" name="login" value="注册">
+                    </div>
+                </div>
+                <span style="color: #ffffff;">
+                    {{ msg }}
+                </span>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>
