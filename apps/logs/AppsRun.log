@@ -1,0 +1,6 @@
+2024-04-20 16:22:45,222 - ERROR - manage - (pymysql.err.OperationalError) (2003, "Can't connect to MySQL server on '10.10.0.254' (timed out)")
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2024-04-20 16:23:49,695 - ERROR - manage - (pymysql.err.OperationalError) (2003, "Can't connect to MySQL server on '10.10.0.254' (timed out)")
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2024-04-20 16:41:02,572 - ERROR - manage - (pymysql.err.OperationalError) (2003, "Can't connect to MySQL server on '10.10.0.254' (timed out)")
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

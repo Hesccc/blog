@@ -9,7 +9,7 @@ class Config(db.Model):
     __tablename__ = 'config'  # 设置表名
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     name = db.Column(db.String(200), nullable=False)  # 第一列name，字符串型，200个字符以内，不可为空
-    value = db.Column(db.String(500), nullable=False)  # 第二列value，字符串型，500个字符以内，不可为空
+    value = db.Column(db.Text, nullable=False)  # 第二列value，文本型，不可为空
 
 
 class User(db.Model):
