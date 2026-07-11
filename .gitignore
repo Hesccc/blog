@@ -21,7 +21,7 @@ Thumbs.db
 *.sw?
 
 # --- Python Backend (.venv & caches) ---
-__pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 .venv/
@@ -33,7 +33,9 @@ env/
 .coverage
 htmlcov/
 .mypy_cache/
-
+api/__pycache__
+__pycache__
+apps/__pycache__
 # --- Local Databases ---
 *.db
 *.sqlite
