@@ -14,6 +14,7 @@ def init_exts(app):
     with app.app_context():
         # 确保模型已经加载
         from apps.models.model import Config, User, Categories, Tags, Posts
+        from apps.models.oss_image import OssImage  # noqa: F401 — 确保 oss_images 表被创建
         db.create_all()
 
         # 检查是否为空白数据库（Config 表为空）

@@ -11,6 +11,7 @@ import { AdminPosts } from './pages/AdminPosts';
 import { AdminPostEdit } from './pages/AdminPostEdit';
 import { AdminCategories } from './pages/AdminCategories';
 import { AdminSettings } from './pages/AdminSettings';
+import { AdminOssImages } from './pages/AdminOssImages';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
         <Route path="/admin/categories" element={<AdminCategories activeTab="categories" />} />
         <Route path="/admin/tags" element={<AdminCategories activeTab="tags" />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
+        <Route path="/admin/oss-images" element={<AdminOssImages />} />
       </Routes>
     </Router>
   );

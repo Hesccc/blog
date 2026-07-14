@@ -13,8 +13,14 @@ const AboutHero: React.FC = () => (
 );
 
 export const About: React.FC = () => {
-  const [config, setConfig] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState<Record<string, string>>(() => {
+    try {
+      const cached = localStorage.getItem('blog_config');
+      return cached ? JSON.parse(cached) : {};
+    } catch {}
+    return {};
+  });
+  const [loading, setLoading] = useState(() => Object.keys(config).length === 0);
 
   useEffect(() => {
     document.title = '关于 - 散漫的老何';

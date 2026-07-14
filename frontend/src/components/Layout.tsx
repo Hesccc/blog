@@ -9,7 +9,13 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
-  const [config, setConfig] = useState<Record<string, string>>({});
+  const [config, setConfig] = useState<Record<string, string>>(() => {
+    try {
+      const cached = localStorage.getItem('blog_config');
+      return cached ? JSON.parse(cached) : {};
+    } catch {}
+    return {};
+  });
   const [scrolled, setScrolled] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');

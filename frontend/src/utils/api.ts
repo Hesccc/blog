@@ -45,6 +45,24 @@ export interface SystemEnv {
   mem_usage: number;
 }
 
+export interface OssImage {
+  id: number;
+  url: string;
+  file_name: string;
+  remark: string;
+  create_time: string;
+  update_time: string;
+}
+
+export interface OssImageListResult {
+  images: OssImage[];
+  total: number;
+  page: number;
+  pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
 async function apiFetch(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('blog_token');
   const headers = new Headers(options.headers || {});
@@ -128,7 +146,14 @@ export const api = {
   },
 
   getConfig: (): Promise<Record<string, string>> => {
-    return apiFetch('/api/config');
+    return apiFetch('/api/config').then(data => {
+      try {
+        localStorage.setItem('blog_config', JSON.stringify(data));
+      } catch (e) {
+        console.error('Failed to cache config', e);
+      }
+      return data;
+    });
   },
 
   // Admin Manage APIs
@@ -214,6 +239,48 @@ export const api = {
     return apiFetch('/api/manage/config', {
       method: 'PUT',
       body: JSON.stringify(config),
+    }).then(data => {
+      try {
+        localStorage.setItem('blog_config', JSON.stringify(data));
+      } catch (e) {
+        console.error('Failed to update config cache', e);
+      }
+      return data;
     });
-  }
+  },
+
+  // OSS 图片库
+  ossGetRandom: (): Promise<{ url: string | null; id?: number }> => {
+    return apiFetch('/api/oss/random');
+  },
+
+  adminOssGetImages: (params: { page?: number; per_page?: number; search?: string } = {}): Promise<OssImageListResult> => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', params.page.toString());
+    if (params.per_page) query.set('per_page', params.per_page.toString());
+    if (params.search) query.set('search', params.search);
+    return apiFetch(`/api/manage/oss/images?${query.toString()}`);
+  },
+
+  adminOssAddImages: (urls: string[]): Promise<{ msg: string; added: OssImage[]; skipped: string[] }> => {
+    return apiFetch('/api/manage/oss/images', {
+      method: 'POST',
+      body: JSON.stringify({ urls }),
+    });
+  },
+
+  adminOssDeleteImage: (id: number) => {
+    return apiFetch(`/api/manage/oss/images/${id}`, { method: 'DELETE' });
+  },
+
+  adminOssBatchDelete: (ids: number[]) => {
+    return apiFetch('/api/manage/oss/images/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  },
+
+  adminOssImportFromPosts: (): Promise<{ msg: string; added: number; skipped: number }> => {
+    return apiFetch('/api/manage/oss/import-from-posts', { method: 'POST' });
+  },
 };

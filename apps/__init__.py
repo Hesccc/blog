@@ -5,6 +5,7 @@ from . import config
 from .api.auth import api_auth
 from .api.posts import api_posts
 from .api.config import api_config
+from .api.oss import api_oss
 import datetime
 
 
@@ -18,6 +19,7 @@ def create_apps():
     app.register_blueprint(blueprint=api_auth)
     app.register_blueprint(blueprint=api_posts)
     app.register_blueprint(blueprint=api_config)
+    app.register_blueprint(blueprint=api_oss)
 
     # 注册DB数据库
     app.config.from_object(config)

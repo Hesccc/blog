@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, useNavigate, Link } from 'react-router-dom';
+import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
 
 interface AdminLayoutProps {
@@ -7,16 +7,61 @@ interface AdminLayoutProps {
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const token = localStorage.getItem('blog_token');
+    return !token;
+  });
+  const [blogTitle, setBlogTitle] = useState(() => {
+    try {
+      const cached = localStorage.getItem('blog_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed.website_title || '散漫的老何';
+      }
+    } catch { }
+    return '散漫的老何';
+  });
   const navigate = useNavigate();
+  const location = useLocation();
+
   useEffect(() => {
     const token = localStorage.getItem('blog_token');
     if (!token) {
       navigate('/login');
     } else {
       setLoading(false);
+      api.getConfig().then(data => {
+        if (data && data.website_title) {
+          setBlogTitle(data.website_title);
+        }
+      }).catch(console.error);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const path = location.pathname;
+    let pageTitle = '后台管理';
+
+    if (path === '/admin') {
+      pageTitle = '数据概览';
+    } else if (path === '/admin/posts') {
+      pageTitle = '文章管理';
+    } else if (path === '/admin/posts/new') {
+      pageTitle = '新建文章';
+    } else if (path.startsWith('/admin/posts/edit/')) {
+      pageTitle = '编辑文章';
+    } else if (path === '/admin/categories') {
+      pageTitle = '分类管理';
+    } else if (path === '/admin/tags') {
+      pageTitle = '标签管理';
+    } else if (path === '/admin/oss-images') {
+      pageTitle = '图片库管理';
+    } else if (path === '/admin/settings') {
+      pageTitle = '系统设置';
+    }
+
+    document.title = `${pageTitle} - 后台管理`;
+  }, [location.pathname]);
 
   const handleLogout = () => {
     api.logout();
@@ -70,23 +115,32 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               </NavLink>
             </li>
             <li className="admin-menu-item">
+              <NavLink to="/admin/oss-images" className={({ isActive }) => isActive ? 'active' : ''}>
+                🖼️ 图片库
+              </NavLink>
+            </li>
+            <li className="admin-menu-item">
               <NavLink to="/admin/settings" className={({ isActive }) => isActive ? 'active' : ''}>
                 ⚙️ 系统设置
               </NavLink>
             </li>
+
           </ul>
 
           {/* Bottom actions */}
-          <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <Link to="/" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
-              🏠 返回博客
+          <div className="admin-sidebar-footer">
+            <Link to="/" className="admin-sidebar-footer-btn">
+              <span>🏠</span> 返回主页
             </Link>
-            <button
-              onClick={handleLogout}
-              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '0' }}
-            >
-              🚪 退出登录
+            <button onClick={handleLogout} className="admin-sidebar-footer-btn">
+              <span>🚪</span> 退出登录
             </button>
+            <div className="admin-sidebar-copyright">
+              © 2005-2026 {blogTitle}
+              <div style={{ fontSize: '0.62rem', marginTop: '0.2rem', opacity: 0.65 }}>
+                v1.1.0 (Build 20260714)
+              </div>
+            </div>
           </div>
         </aside>
 

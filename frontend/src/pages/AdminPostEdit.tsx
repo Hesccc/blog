@@ -105,9 +105,6 @@ export const AdminPostEdit: React.FC = () => {
         <h2 style={{ fontFamily: 'var(--font-heading)' }}>
           {isEditMode ? '修改文章' : '新增文章'}
         </h2>
-        <button onClick={() => navigate('/admin/posts')} className="btn btn-secondary" style={{ fontFamily: 'inherit' }}>
-          返回列表
-        </button>
       </div>
 
       {error && (
@@ -146,7 +143,6 @@ export const AdminPostEdit: React.FC = () => {
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
               className="admin-form-control"
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
             >
               <option value="">-- 请选择分类 --</option>
               {categories.map(cat => (
@@ -161,7 +157,6 @@ export const AdminPostEdit: React.FC = () => {
               value={status}
               onChange={(e) => setStatus(parseInt(e.target.value, 10))}
               className="admin-form-control"
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
             >
               <option value={0}>发布</option>
               <option value={3}>草稿</option>
@@ -211,9 +206,24 @@ export const AdminPostEdit: React.FC = () => {
           </div>
         </div>
 
-        <button type="submit" disabled={loading} className="btn btn-primary" style={{ alignSelf: 'flex-start', marginTop: '1rem', fontFamily: 'inherit' }}>
-          {loading ? '正在保存...' : '保存文章'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignSelf: 'flex-start', marginTop: '1rem' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/posts')}
+            className="btn btn-primary"
+            style={{ fontFamily: 'inherit', minWidth: '110px', justifyContent: 'center' }}
+          >
+            返回列表
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary"
+            style={{ fontFamily: 'inherit', minWidth: '110px', justifyContent: 'center' }}
+          >
+            {loading ? '正在保存...' : '保存文章'}
+          </button>
+        </div>
       </form>
     </AdminLayout>
   );

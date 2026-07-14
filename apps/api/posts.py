@@ -182,7 +182,8 @@ def manage_update_post(post_id):
     status = data.get('status')
     category_id = data.get('category_id')
     tag_ids = data.get('tag_ids')
-    thumbnail = data.get('thumbnail')
+    _SENTINEL = object()
+    thumbnail = data.get('thumbnail', _SENTINEL)
     meta_description = data.get('meta_description')
     
     if title is not None:
@@ -193,8 +194,9 @@ def manage_update_post(post_id):
             post.meta_description = content[:150]
     if status is not None:
         post.status = status
-    if thumbnail is not None:
-        post.thumbnail = thumbnail
+    # thumbnail 字段：传字符串则更新，传 null 则清空，不传则不修改
+    if thumbnail is not _SENTINEL:
+        post.thumbnail = thumbnail  # None 也合法，代表清空
     if meta_description is not None:
         post.meta_description = meta_description
         

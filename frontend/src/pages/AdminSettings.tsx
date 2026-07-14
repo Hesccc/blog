@@ -3,8 +3,14 @@ import { api } from '../utils/api';
 import { AdminLayout } from '../components/AdminLayout';
 
 export const AdminSettings: React.FC = () => {
-  const [config, setConfig] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState<Record<string, string>>(() => {
+    try {
+      const cached = localStorage.getItem('blog_config');
+      return cached ? JSON.parse(cached) : {};
+    } catch {}
+    return {};
+  });
+  const [loading, setLoading] = useState(() => Object.keys(config).length === 0);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
