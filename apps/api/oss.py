@@ -5,17 +5,26 @@ OSS 图片库 API
 管理员手动添加 OSS 图片 URL，系统在 DB 中维护索引，支持文章封面随机兜底。
 """
 import random as _random
+import uuid
+import urllib.request
+import hashlib
+from pathlib import Path
 from urllib.parse import urlparse, unquote
-
-from flask import Blueprint, request, jsonify
 from datetime import datetime
 
+from flask import Blueprint, request, jsonify, send_from_directory, redirect
 from apps.exts import db
 from apps.models.oss_image import OssImage
 from apps.models.model import Posts
+from apps import config
 from .middleware import token_required
 
 api_oss = Blueprint('api_oss', __name__)
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+
+def _allowed_file(filename: str) -> bool:
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def _parse_filename(url: str) -> str:
@@ -40,6 +49,55 @@ def oss_random_image():
     count = OssImage.query.filter(OssImage.deleted == 0).count()
     if count == 0:
         return jsonify({'url': None})
+
+    # 随机偏移取一条，比 ORDER BY RAND() 在大表时更高效
+    offset = _random.randint(0, count - 1)
+    img = OssImage.query.filter(OssImage.deleted == 0).offset(offset).limit(1).first()
+    if img:
+        return jsonify({'url': img.url, 'id': img.id})
+    return jsonify({'url': None})
+
+
+@api_oss.route('/api/posts/<int:post_id>/cover', methods=['GET'])
+def get_post_deterministic_cover(post_id: int):
+    """
+    确定性免费图床缓存服务：
+    1. 若文章已有 thumbnail，直接重定向到其 thumbnail；
+    2. 若无，根据 post_id 生成唯一的确定性 Seed，检查 temp/images 目录是否已缓存；
+    3. 若本地已有缓存，直接从本地返回静态图片（消除外部网络依赖）；
+    4. 若未缓存，从高质量图站 (Picsum Photos) 拉取并保存到 temp/images/，再返回本地静态文件；
+    5. 若离线或拉取失败，重定向到默认备用图或外部直连。
+    """
+    post = Posts.query.filter(Posts.id == post_id, Posts.deleted == 0).first()
+    if post and post.thumbnail and post.thumbnail.strip():
+        return redirect(post.thumbnail.strip())
+
+    # 构造唯一文件名：post_{post_id}_{seed_hash}.jpg
+    seed = f"blog-article-{post_id}"
+    seed_hash = hashlib.md5(seed.encode()).hexdigest()[:8]
+    cached_filename = f"post_{post_id}_{seed_hash}.jpg"
+    cached_filepath = Path(config.CACHE_IMAGE_DIR) / cached_filename
+
+    if cached_filepath.exists() and cached_filepath.stat().st_size > 0:
+        return send_from_directory(config.CACHE_IMAGE_DIR, cached_filename)
+
+    # 尝试从外部图源下载缓存
+    external_url = f"https://picsum.photos/seed/{seed}/800/500"
+    try:
+        req = urllib.request.Request(
+            external_url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                with open(cached_filepath, 'wb') as f:
+                    f.write(response.read())
+                return send_from_directory(config.CACHE_IMAGE_DIR, cached_filename)
+    except Exception:
+        # 外部网络不通或超时时，降级重定向到 picsum 外部链接尝试由浏览器直接加载
+        pass
+
+    return redirect(external_url)
 
     # 随机偏移取一条，比 ORDER BY RAND() 在大表时更高效
     offset = _random.randint(0, count - 1)
@@ -212,6 +270,81 @@ def oss_import_from_posts():
 
     db.session.commit()
     return jsonify({'msg': f'导入完成：新增 {added} 张，跳过 {skipped} 张（已存在）', 'added': added, 'skipped': skipped})
+
+
+# ──────────────────────────────────────────────
+# 真实图片文件上传接口
+# ──────────────────────────────────────────────
+
+@api_oss.route('/api/manage/upload', methods=['POST'])
+@api_oss.route('/api/manage/oss/upload', methods=['POST'])
+@token_required
+def oss_upload_image():
+    """
+    真实图片文件上传端点。
+    按年月目录持久化保存，自动注入 oss_images 图片库。
+    """
+    if 'file' not in request.files and 'files' not in request.files:
+        return jsonify({'msg': '请选择要上传的图片文件'}), 400
+
+    uploaded_files = request.files.getlist('files') or request.files.getlist('file')
+    remark = request.form.get('remark', '').strip()
+    sync_gallery = request.form.get('sync_to_gallery', 'true').lower() in ('true', '1', 'yes')
+
+    now = datetime.now()
+    year_month = now.strftime('%Y%m')
+    save_dir = Path(config.UPLOAD_PATH) / 'images' / year_month
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    results = []
+    for file in uploaded_files:
+        if not file or not file.filename:
+            continue
+
+        if not _allowed_file(file.filename):
+            continue
+
+        orig_name = file.filename
+        ext = orig_name.rsplit('.', 1)[1].lower()
+        unique_name = f"{now.strftime('%d%H%M%S')}_{uuid.uuid4().hex[:8]}.{ext}"
+        target_path = save_dir / unique_name
+
+        file.save(str(target_path))
+
+        file_url = f"/uploads/images/{year_month}/{unique_name}"
+
+        image_record = None
+        if sync_gallery:
+            image_record = OssImage(
+                url=file_url,
+                file_name=orig_name,
+                remark=remark or '本地上传',
+                deleted=0,
+                create_time=now,
+                update_time=now
+            )
+            db.session.add(image_record)
+            db.session.flush()
+
+        results.append({
+            'url': file_url,
+            'file_name': orig_name,
+            'id': image_record.id if image_record else None
+        })
+
+    if sync_gallery and results:
+        db.session.commit()
+
+    if not results:
+        return jsonify({'msg': '未找到有效图片，支持格式：png, jpg, jpeg, gif, webp, svg'}), 400
+
+    return jsonify({
+        'msg': f'成功上传 {len(results)} 张图片',
+        'url': results[0]['url'],
+        'file_name': results[0]['file_name'],
+        'id': results[0]['id'],
+        'items': results
+    }), 201
 
 
 # ──────────────────────────────────────────────

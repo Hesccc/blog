@@ -1,9 +1,47 @@
-HOSTNAME = '192.168.0.241'  # 数据库地址
-PORT = '23306'  # 端口号
-DATABASE = 'blog'  # 数据库名称
-USERNAME = 'blog'  # 用户名
-PASSWORD = "blog"  # 密码
-DB_URI = 'mysql+pymysql://%s:%s@%s:%s/%s?charset=utf8mb4' % (USERNAME, PASSWORD, HOSTNAME, PORT, DATABASE)
-print(DB_URI)
-SQLALCHEMY_DATABASE_URI = DB_URI  # 设置数据库连接  用于连接的数据库URI
-SQLALCHEMY_TRACK_MODIFICATIONS = True  # 禁止对象追踪修改 设置为True，不然会报增加显著开销的错误。
+import os
+import logging
+from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载项目根目录下的 .env 文件
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
+
+# 安全密钥
+SECRET_KEY = os.getenv('SECRET_KEY', 'default-dev-secret-key-please-change-in-env')
+if SECRET_KEY == 'default-dev-secret-key-please-change-in-env':
+    logging.warning('SECRET_KEY 正在使用内置默认值，生产环境务必在 .env 中配置随机强密钥！')
+
+# CORS 允许的来源（逗号分隔），生产环境建议配置为具体前端域名
+CORS_ORIGINS = [o.strip() for o in os.getenv('CORS_ORIGINS', '*').split(',') if o.strip()]
+
+# 数据库配置
+HOSTNAME = os.getenv('DB_HOST', '127.0.0.1')
+PORT = os.getenv('DB_PORT', '3306')
+DATABASE = os.getenv('DB_NAME', 'blog')
+USERNAME = os.getenv('DB_USER', 'root')
+PASSWORD = os.getenv('DB_PASSWORD', '')
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    DB_URI = DATABASE_URL
+else:
+    DB_URI = f'mysql+pymysql://{USERNAME}:{PASSWORD}@{HOSTNAME}:{PORT}/{DATABASE}?charset=utf8mb4'
+
+SQLALCHEMY_DATABASE_URI = DB_URI
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+# 上传配置
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
+UPLOAD_PATH = (BASE_DIR / UPLOAD_FOLDER).resolve()
+UPLOAD_PATH.mkdir(parents=True, exist_ok=True)
+MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
+
+# 外部图床本地缓存目录 (temp/images)
+CACHE_IMAGE_DIR = (BASE_DIR / 'temp' / 'images').resolve()
+CACHE_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+# LLM 大模型配置 (OpenAI 兼容规范)
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_BASE_URL = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')

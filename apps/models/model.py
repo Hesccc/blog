@@ -1,28 +1,27 @@
 from ..exts import db
 
 
-def __repr__(self):
-    return '<User %r>' % self.name
-
-
 class Config(db.Model):
-    __tablename__ = 'config'  # 设置表名
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
-    name = db.Column(db.String(200), nullable=False)  # 第一列name，字符串型，200个字符以内，不可为空
-    value = db.Column(db.Text, nullable=False)  # 第二列value，文本型，不可为空
+    __tablename__ = 'config'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(200), nullable=False, unique=True)
+    value = db.Column(db.Text, nullable=False)
 
 
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
-    username = db.Column(db.String(100), nullable=False)
-    password = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(100), nullable=False, unique=True)
+    password = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(150), nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     create_time = db.Column(db.DateTime, nullable=False)
-    deleted = db.Column(db.Integer)
+    deleted = db.Column(db.Integer, default=0)
     update_time = db.Column(db.DateTime, nullable=False)
+
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 
 class History(db.Model):
@@ -38,13 +37,14 @@ class Posts(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     title = db.Column(db.String(100), nullable=False)
     author = db.Column(db.String(100), nullable=True)
-    content = db.Column(db.Text(2048), nullable=True)
+    content = db.Column(db.Text, nullable=True)
     access_count = db.Column(db.Integer, nullable=True)
     thumbnail = db.Column(db.String(1024), nullable=True)
     status = db.Column(db.Integer, nullable=True)
     update_time = db.Column(db.DateTime, nullable=True)
     create_time = db.Column(db.DateTime, nullable=True)
     meta_description = db.Column(db.String(1023), nullable=True)
+    summary = db.Column(db.String(600), nullable=True)  # AI 生成的文章内容摘要 (200字以内)
     deleted = db.Column(db.Integer)
 
 

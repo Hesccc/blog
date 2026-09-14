@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy  # 导入SQLAlchemy包
 from flask_migrate import Migrate
 from datetime import datetime
+from apps.tools.tools import generate_password
 
 db = SQLAlchemy()  # ORM 创建数据库sqlalchemy工具对象
 migrate = Migrate()  # 创建对象
@@ -15,7 +16,19 @@ def init_exts(app):
         # 确保模型已经加载
         from apps.models.model import Config, User, Categories, Tags, Posts
         from apps.models.oss_image import OssImage  # noqa: F401 — 确保 oss_images 表被创建
+        from sqlalchemy import text
         db.create_all()
+
+        # 兼容老库字段升级 (password 升级到 255 字节，content 升级为 LONGTEXT，新增 summary 摘要列)
+        try:
+            db.session.execute(text('ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL'))
+            db.session.execute(text('ALTER TABLE posts MODIFY COLUMN content LONGTEXT'))
+            cols = [c[0] for c in db.session.execute(text('DESCRIBE posts')).fetchall()]
+            if 'summary' not in cols:
+                db.session.execute(text('ALTER TABLE posts ADD COLUMN summary VARCHAR(600) NULL'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
         # 检查是否为空白数据库（Config 表为空）
         if Config.query.first() is None:
@@ -34,7 +47,7 @@ def init_exts(app):
                 admin_user = User(
                     id=1,
                     username='admin',
-                    password='e6e061838856bf47e1de730719fb2609',
+                    password=generate_password('admin'),
                     email='mr.hesc@outlook.com',
                     name='管理员',
                     description='管理员账号',

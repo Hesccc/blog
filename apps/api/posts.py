@@ -1,33 +1,95 @@
 from flask import Blueprint, request, jsonify, g
 from datetime import datetime
+import collections
+import zipfile
+import io
+import os
 from apps.exts import db
 from apps.models.model import Posts, Categories, Tags, PostTags, PostCategories
 from .middleware import token_required
 
 api_posts = Blueprint('api_posts', __name__)
 
+
+def serialize_posts(posts):
+    """
+    批量序列化文章列表，消除 N+1 查询瓶颈。
+    无论列表文章数量多少，始终只执行 2 次批量查询获取关联分类与标签。
+    """
+    if not posts:
+        return []
+
+    post_ids = [p.id for p in posts]
+
+    # 1. 单次批量查询分类关联
+    cat_rows = (
+        db.session.query(PostCategories.post_id, Categories)
+        .join(Categories, Categories.id == PostCategories.category_id)
+        .filter(
+            PostCategories.post_id.in_(post_ids),
+            PostCategories.deleted == 0,
+            Categories.deleted == 0
+        )
+        .all()
+    )
+    categories_by_post = collections.defaultdict(list)
+    for post_id, c in cat_rows:
+        categories_by_post[post_id].append({
+            'id': c.id,
+            'name': c.name,
+            'slug': c.slug,
+            'color': c.color
+        })
+
+    # 2. 单次批量查询标签关联
+    tag_rows = (
+        db.session.query(PostTags.post_id, Tags)
+        .join(Tags, Tags.id == PostTags.tag_id)
+        .filter(
+            PostTags.post_id.in_(post_ids),
+            PostTags.deleted == 0,
+            Tags.deleted == 0
+        )
+        .all()
+    )
+    tags_by_post = collections.defaultdict(list)
+    for post_id, t in tag_rows:
+        tags_by_post[post_id].append({
+            'id': t.id,
+            'name': t.name,
+            'slug': t.slug,
+            'color': t.color
+        })
+
+    # 3. 内存聚合生成序列化对象
+    results = []
+    for post in posts:
+        # summary 优先展示 summary 字段，为空时降级 meta_description
+        article_summary = post.summary or post.meta_description or (post.content[:150] if post.content else '')
+        results.append({
+            'id': post.id,
+            'title': post.title,
+            'author': post.author,
+            'content': post.content,
+            'access_count': post.access_count,
+            'thumbnail': post.thumbnail,
+            'status': post.status,
+            'create_time': post.create_time.isoformat() if post.create_time else None,
+            'update_time': post.update_time.isoformat() if post.update_time else None,
+            'meta_description': post.meta_description,
+            'summary': article_summary,
+            'categories': categories_by_post.get(post.id, []),
+            'tags': tags_by_post.get(post.id, [])
+        })
+    return results
+
+
 def serialize_post(post):
-    # Fetch categories for this post
-    categories = db.session.query(Categories).join(PostCategories, Categories.id == PostCategories.category_id)\
-        .filter(PostCategories.post_id == post.id, PostCategories.deleted == 0, Categories.deleted == 0).all()
-    # Fetch tags for this post
-    tags = db.session.query(Tags).join(PostTags, Tags.id == PostTags.tag_id)\
-        .filter(PostTags.post_id == post.id, PostTags.deleted == 0, Tags.deleted == 0).all()
-        
-    return {
-        'id': post.id,
-        'title': post.title,
-        'author': post.author,
-        'content': post.content,
-        'access_count': post.access_count,
-        'thumbnail': post.thumbnail,
-        'status': post.status,
-        'create_time': post.create_time.isoformat() if post.create_time else None,
-        'update_time': post.update_time.isoformat() if post.update_time else None,
-        'meta_description': post.meta_description,
-        'categories': [{'id': c.id, 'name': c.name, 'slug': c.slug, 'color': c.color} for c in categories],
-        'tags': [{'id': t.id, 'name': t.name, 'slug': t.slug, 'color': t.color} for t in tags]
-    }
+    """单个文章序列化（复用批量逻辑，保持返回结构严格一致）。"""
+    if not post:
+        return None
+    res = serialize_posts([post])
+    return res[0] if res else None
 
 # ----------------- PUBLIC ENDPOINTS -----------------
 
@@ -60,7 +122,7 @@ def get_posts():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
     return jsonify({
-        'posts': [serialize_post(p) for p in pagination.items],
+        'posts': serialize_posts(pagination.items),
         'total': pagination.total,
         'page': pagination.page,
         'pages': pagination.pages,
@@ -108,19 +170,51 @@ def manage_get_posts():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     search = request.args.get('search')
-    
+    status = request.args.get('status', type=int)
+    category_id = request.args.get('category_id', type=int)
+    sort_by = request.args.get('sort_by', 'create_time')   # field name
+    sort_order = request.args.get('sort_order', 'desc')     # asc | desc
+
+    # Clamp per_page to sane values
+    per_page = max(5, min(per_page, 100))
+
+    # Allowed sort columns (map frontend key -> model attr)
+    SORT_MAP = {
+        'id': Posts.id,
+        'title': Posts.title,
+        'access_count': Posts.access_count,
+        'status': Posts.status,
+        'create_time': Posts.create_time,
+        'update_time': Posts.update_time,
+    }
+    sort_col = SORT_MAP.get(sort_by, Posts.create_time)
+    order_expr = sort_col.asc() if sort_order == 'asc' else sort_col.desc()
+
     query = Posts.query.filter(Posts.deleted == 0)
+
+    # 状态过滤 (0: 已发布, 3: 草稿)
+    if status is not None:
+        query = query.filter(Posts.status == status)
+
+    # 分类过滤
+    if category_id:
+        query = query.join(PostCategories, Posts.id == PostCategories.post_id)\
+                     .filter(PostCategories.category_id == category_id, PostCategories.deleted == 0)
+
     if search:
         query = query.filter(Posts.title.like(f'%{search}%'))
-        
-    query = query.order_by(Posts.create_time.desc())
+
+    query = query.order_by(order_expr)
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    
+
     return jsonify({
-        'posts': [serialize_post(p) for p in pagination.items],
+        'posts': serialize_posts(pagination.items),
         'total': pagination.total,
         'page': pagination.page,
-        'pages': pagination.pages
+        'pages': pagination.pages,
+        'per_page': per_page,
+        'sort_by': sort_by,
+        'sort_order': sort_order,
     })
 
 @api_posts.route('/api/manage/posts/<int:post_id>', methods=['GET'])
@@ -140,6 +234,7 @@ def manage_create_post():
     tag_ids = data.get('tag_ids', [])
     thumbnail = data.get('thumbnail')
     meta_description = data.get('meta_description')
+    summary = data.get('summary')
     
     if not title:
         return jsonify({'msg': 'Title is required!'}), 400
@@ -152,6 +247,7 @@ def manage_create_post():
         thumbnail=thumbnail,
         status=status,
         meta_description=meta_description or (content[:150] if content else ''),
+        summary=summary or (meta_description or (content[:150] if content else '')),
         deleted=0,
         create_time=datetime.now(),
         update_time=datetime.now()
@@ -169,7 +265,7 @@ def manage_create_post():
             db.session.add(post_tag)
             
     db.session.commit()
-    return jsonify(serialize_post(new_post)), 217
+    return jsonify(serialize_post(new_post)), 201
 
 @api_posts.route('/api/manage/posts/<int:post_id>', methods=['PUT'])
 @token_required
@@ -199,6 +295,8 @@ def manage_update_post(post_id):
         post.thumbnail = thumbnail  # None 也合法，代表清空
     if meta_description is not None:
         post.meta_description = meta_description
+    if 'summary' in data:
+        post.summary = data.get('summary')
         
     post.update_time = datetime.now()
     
@@ -234,6 +332,193 @@ def manage_delete_post(post_id):
     
     db.session.commit()
     return jsonify({'msg': 'Post deleted successfully!'})
+
+
+# ----------------- BATCH OPERATIONS -----------------
+
+@api_posts.route('/api/manage/posts/batch', methods=['POST'])
+@token_required
+def manage_batch_posts():
+    """
+    Batch operations on posts.
+    Body: { "action": "delete"|"publish"|"draft", "ids": [1, 2, 3] }
+    Returns: { "msg": str, "affected": int }
+    """
+    data = request.get_json() or {}
+    action = data.get('action')
+    ids = data.get('ids', [])
+
+    if not action or action not in ('delete', 'publish', 'draft'):
+        return jsonify({'msg': 'action 参数无效，可选值：delete / publish / draft'}), 400
+    if not ids or not isinstance(ids, list):
+        return jsonify({'msg': 'ids 参数无效，请传入文章 ID 列表'}), 400
+
+    posts = Posts.query.filter(Posts.id.in_(ids), Posts.deleted == 0).all()
+    if not posts:
+        return jsonify({'msg': '未找到目标文章'}), 404
+
+    now = datetime.now()
+    for post in posts:
+        if action == 'delete':
+            post.deleted = 1
+            post.update_time = now
+            PostCategories.query.filter(PostCategories.post_id == post.id).update({PostCategories.deleted: 1})
+            PostTags.query.filter(PostTags.post_id == post.id).update({PostTags.deleted: 1})
+        elif action == 'publish':
+            post.status = 0
+            post.update_time = now
+        elif action == 'draft':
+            post.status = 3
+            post.update_time = now
+
+    db.session.commit()
+    action_label = {'delete': '删除', 'publish': '发布', 'draft': '设为草稿'}[action]
+    return jsonify({'msg': f'已{action_label} {len(posts)} 篇文章', 'affected': len(posts)})
+
+
+# ----------------- IMPORT POSTS -----------------
+
+
+def _parse_md_frontmatter(text: str):
+    """
+    Parse optional YAML-like frontmatter from a .md file.
+    Returns (title, status, body_content).
+    Frontmatter block is delimited by --- lines at the top.
+    Supported keys: title, status (published|draft|0|3)
+    """
+    title = None
+    status = 3  # default to draft
+
+    lines = text.splitlines()
+    if lines and lines[0].strip() == '---':
+        end_idx = None
+        for i, line in enumerate(lines[1:], start=1):
+            if line.strip() == '---':
+                end_idx = i
+                break
+        if end_idx:
+            fm_lines = lines[1:end_idx]
+            body_lines = lines[end_idx + 1:]
+            for fl in fm_lines:
+                if ':' in fl:
+                    key, _, val = fl.partition(':')
+                    key = key.strip().lower()
+                    val = val.strip().strip('"').strip("'")
+                    if key == 'title':
+                        title = val
+                    elif key == 'status':
+                        if val in ('0', 'published', 'publish'):
+                            status = 0
+                        else:
+                            status = 3
+            return title, status, '\n'.join(body_lines).strip()
+
+    return title, status, text.strip()
+
+
+def _import_single_md(filename: str, content_bytes: bytes, author: str):
+    """
+    Parse and save a single .md file as a Post.
+    Returns the created Post object or raises on error.
+    """
+    text = content_bytes.decode('utf-8', errors='replace')
+    title, status, body = _parse_md_frontmatter(text)
+
+    # Fall back title to file name (strip .md extension)
+    if not title:
+        base = os.path.basename(filename)
+        title = os.path.splitext(base)[0].replace('-', ' ').replace('_', ' ').strip()
+    if not title:
+        title = '未命名文章'
+
+    new_post = Posts(
+        title=title,
+        content=body,
+        author=author,
+        access_count=0,
+        thumbnail=None,
+        status=status,
+        meta_description=(body[:150] if body else ''),
+        deleted=0,
+        create_time=datetime.now(),
+        update_time=datetime.now()
+    )
+    db.session.add(new_post)
+    return new_post
+
+
+@api_posts.route('/api/manage/posts/import', methods=['POST'])
+@token_required
+def manage_import_posts():
+    """
+    Import posts from uploaded files.
+    Accepts:
+      - A single .md file  (field: file)
+      - A .zip archive containing .md files (field: file)
+    Returns a JSON summary: { imported: int, skipped: int, titles: [str], errors: [str] }
+    """
+    if 'file' not in request.files:
+        return jsonify({'msg': '请上传文件（file 字段）'}), 400
+
+    upload = request.files['file']
+    filename = upload.filename or ''
+    author = g.current_user.username
+
+    imported_titles = []
+    skipped = []
+    errors = []
+
+    try:
+        if filename.lower().endswith('.md'):
+            # Single markdown file
+            content_bytes = upload.read()
+            try:
+                post = _import_single_md(filename, content_bytes, author)
+                db.session.flush()
+                imported_titles.append(post.title)
+            except Exception as e:
+                errors.append(f'{filename}: {str(e)}')
+
+        elif filename.lower().endswith('.zip'):
+            # ZIP archive — extract all .md files
+            content_bytes = upload.read()
+            try:
+                zf = zipfile.ZipFile(io.BytesIO(content_bytes))
+            except zipfile.BadZipFile:
+                return jsonify({'msg': '无效的 ZIP 文件'}), 400
+
+            md_names = [n for n in zf.namelist() if n.lower().endswith('.md') and not os.path.basename(n).startswith('.')]
+            if not md_names:
+                return jsonify({'msg': 'ZIP 压缩包中未找到 .md 文件'}), 400
+
+            for md_name in md_names:
+                try:
+                    md_bytes = zf.read(md_name)
+                    post = _import_single_md(md_name, md_bytes, author)
+                    db.session.flush()
+                    imported_titles.append(post.title)
+                except Exception as e:
+                    errors.append(f'{md_name}: {str(e)}')
+                    skipped.append(md_name)
+
+        else:
+            return jsonify({'msg': '仅支持 .md 文件或 .zip 压缩包'}), 400
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'msg': f'导入失败：{str(e)}'}), 500
+
+    return jsonify({
+        'msg': f'成功导入 {len(imported_titles)} 篇文章',
+        'imported': len(imported_titles),
+        'skipped': len(skipped),
+        'titles': imported_titles,
+        'errors': errors
+    })
+
+
 
 # ----------------- CATEGORY & TAG MANAGEMENT -----------------
 
@@ -274,7 +559,7 @@ def manage_create_category():
         'description': cat.description,
         'color': cat.color,
         'parent_id': cat.parent_id
-    }), 217
+    }), 201
 
 @api_posts.route('/api/manage/categories/<int:cat_id>', methods=['PUT'])
 @token_required
@@ -319,6 +604,7 @@ def manage_delete_category(cat_id):
     cat = Categories.query.filter(Categories.id == cat_id, Categories.deleted == 0).first_or_404()
     cat.deleted = 1
     cat.update_time = datetime.now()
+    PostCategories.query.filter(PostCategories.category_id == cat_id).update({PostCategories.deleted: 1})
     db.session.commit()
     return jsonify({'msg': 'Category deleted successfully!'})
 
@@ -353,7 +639,7 @@ def manage_create_tag():
         'name': tag.name,
         'slug': tag.slug,
         'color': tag.color
-    }), 217
+    }), 201
 
 @api_posts.route('/api/manage/tags/<int:tag_id>', methods=['PUT'])
 @token_required
@@ -389,5 +675,6 @@ def manage_delete_tag(tag_id):
     tag = Tags.query.filter(Tags.id == tag_id, Tags.deleted == 0).first_or_404()
     tag.deleted = 1
     tag.update_time = datetime.now()
+    PostTags.query.filter(PostTags.tag_id == tag_id).update({PostTags.deleted: 1})
     db.session.commit()
     return jsonify({'msg': 'Tag deleted successfully!'})

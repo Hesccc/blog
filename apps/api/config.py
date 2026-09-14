@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from apps.exts import db
-from apps.models.model import Config
+from apps.models.model import Config, Posts, Categories, Tags
 from apps.tools.tools import env
 from .middleware import token_required
 
@@ -39,3 +39,72 @@ def get_env():
     if 'datetime' in env_data:
         env_data['datetime'] = env_data['datetime'].isoformat()
     return jsonify(env_data)
+
+@api_config.route('/api/manage/stats', methods=['GET'])
+@token_required
+def get_stats():
+    # 1. 基础文档数量统计
+    total_posts = Posts.query.filter(Posts.deleted == 0).count()
+    published_posts = Posts.query.filter(Posts.deleted == 0, Posts.status == 0).count()
+    draft_posts = Posts.query.filter(Posts.deleted == 0, Posts.status == 3).count()
+    total_categories = Categories.query.filter(Categories.deleted == 0).count()
+    total_tags = Tags.query.filter(Tags.deleted == 0).count()
+    total_views = db.session.query(db.func.sum(Posts.access_count)).filter(Posts.deleted == 0).scalar() or 0
+
+    # 2. 深度文档字数与体量分析
+    all_posts = Posts.query.filter(Posts.deleted == 0).all()
+    total_words = sum(len(p.content or '') for p in all_posts)
+    avg_words = int(total_words / total_posts) if total_posts else 0
+    with_cover_posts = sum(1 for p in all_posts if p.thumbnail and p.thumbnail.strip())
+    without_cover_posts = total_posts - with_cover_posts
+
+    # 3. 最热门文章排行 Top 5
+    top_posts = (
+        Posts.query.filter(Posts.deleted == 0)
+        .order_by(Posts.access_count.desc())
+        .limit(5)
+        .all()
+    )
+    top_posts_data = [{
+        'id': p.id,
+        'title': p.title,
+        'access_count': p.access_count or 0,
+        'create_time': p.create_time.strftime('%Y-%m-%d') if p.create_time else '-'
+    } for p in top_posts]
+
+    # 4. 近期最新发布的文章
+    recent_posts = (
+        Posts.query.filter(Posts.deleted == 0)
+        .order_by(Posts.create_time.desc())
+        .limit(5)
+        .all()
+    )
+    recent_posts_data = [{
+        'id': p.id,
+        'title': p.title,
+        'status': p.status,
+        'create_time': p.create_time.strftime('%Y-%m-%d') if p.create_time else '-'
+    } for p in recent_posts]
+
+    # 5. AI 定时调度任务与运行态指标
+    from apps.tools.ai_scheduler import get_scheduler_status
+    scheduler_info = get_scheduler_status()
+
+    return jsonify({
+        # 文档统计维度
+        'total_posts': total_posts,
+        'published_posts': published_posts,
+        'draft_posts': draft_posts,
+        'total_categories': total_categories,
+        'total_tags': total_tags,
+        'total_views': int(total_views),
+        # 文档深度分析维度
+        'total_words': total_words,
+        'avg_words': avg_words,
+        'with_cover_posts': with_cover_posts,
+        'without_cover_posts': without_cover_posts,
+        'top_posts': top_posts_data,
+        'recent_posts': recent_posts_data,
+        # AI 任务运行监控维度
+        'ai_scheduler': scheduler_info,
+    })

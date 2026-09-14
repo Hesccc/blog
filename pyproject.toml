@@ -5,12 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "croniter>=6.2.4",
     "cryptography>=49.0.0",
     "flask>=3.1.2",
     "flask-cors>=6.0.5",
     "flask-migrate>=4.1.0",
     "flask-sqlalchemy>=3.1.1",
+    "openai>=3.11.0",
+    "pillow>=12.3.0",
     "psutil>=7.2.2",
     "pyjwt>=2.13.0",
     "pymysql>=1.1.2",
+    "python-dotenv>=1.2.3",
+    "websockets>=17.1",
 ]
