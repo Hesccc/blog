@@ -3,16 +3,9 @@ import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Category, Post } from '../utils/api';
 import { Layout } from '../components/Layout';
-
-const CategoriesHero: React.FC = () => (
-  <div className="page-hero">
-    <div className="hero-mask" />
-    <div className="hero-content">
-      <h1 className="hero-title">📁 分类</h1>
-      <div className="hero-subtitle">分类整理，精准检索</div>
-    </div>
-  </div>
-);
+import { IconFolder, IconChevronRight, IconBookOpen } from '../components/Icons';
+import { PageHeroBanner } from '../components/PageHeroBanner';
+import { getDeterministicEmoji } from '../utils/emoji';
 
 interface CategoryWithPosts extends Category {
   posts: Post[];
@@ -25,116 +18,121 @@ export const Categories: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    document.title = '分类 - 散漫的老何';
+    document.title = '专题分类 - 散漫的老何';
     setLoading(true);
 
     Promise.all([api.getCategories(), api.getPosts({ per_page: 9999 })])
       .then(([cats, postsData]) => {
         const postsList: Post[] = postsData.posts;
 
-        // Map categories and filter their posts
         const list: CategoryWithPosts[] = cats.map(cat => {
-          const catPosts = postsList.filter(p => 
+          const catPosts = postsList.filter(p =>
             p.categories && p.categories.some(c => c.id === cat.id)
           );
           return {
             ...cat,
             posts: catPosts,
-            isOpen: false
+            isOpen: false,
           };
         });
 
-        // Filter out categories with no posts or keep all of them
         setCategories(list);
         setLoading(false);
       })
       .catch(err => {
-        setError(err.message || '加载分类数据失败');
+        setError(err.message || '加载分类失败');
         setLoading(false);
       });
   }, []);
 
   const toggleCategory = (id: number) => {
-    setCategories(prev => prev.map(c => 
-      c.id === id ? { ...c, isOpen: !c.isOpen } : c
-    ));
+    setCategories(prev =>
+      prev.map(c => (c.id === id ? { ...c, isOpen: !c.isOpen } : c))
+    );
   };
 
+  const totalPosts = categories.reduce((sum, c) => sum + c.posts.length, 0);
+
+  const hero = (
+    <PageHeroBanner
+      tag="TOPICS & TAXONOMY"
+      tagIcon={<IconFolder size={14} />}
+      title="专题分类"
+      subtitle={`围绕核心技术栈与工程实践的结构化沉淀 · 共 ${categories.length} 个分类，收录 ${totalPosts} 篇内容`}
+    />
+  );
+
   return (
-    <Layout hero={<CategoriesHero />}>
-      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '1rem 0' }}>
+    <Layout hero={hero}>
+      <div className="page-shell">
         {loading ? (
-          <div className="loading-wrap">
-            <div>
-              <span className="loading-dot" /><span className="loading-dot" /><span className="loading-dot" />
-            </div>
-            <p style={{ marginTop: '1rem', fontSize: '0.9rem' }}>加载分类中...</p>
+          <div className="loading-state">
+            <div className="loading-spinner" />
+            <p>正在拉取分类结构...</p>
           </div>
         ) : error ? (
-          <div className="alert alert-error">{error}</div>
+          <div className="alert-box alert-error">{error}</div>
+        ) : categories.length === 0 ? (
+          <div className="empty-state-box">
+            <h3>暂无分类</h3>
+            <p>目前还没有建立任何分类条目。</p>
+          </div>
         ) : (
-          <div style={{ background: 'var(--bg-card)', padding: '2.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              📁 共包含 <strong style={{ color: 'var(--color-primary)' }}>{categories.length}</strong> 个分类
-            </h2>
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', marginBottom: '1.5rem' }} />
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {categories.map(cat => (
-                <div 
-                  key={cat.id} 
-                  style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden', background: cat.isOpen ? 'var(--color-primary-light)' : 'transparent', transition: 'var(--transition)' }}
+          <div className="category-deck">
+            {categories.map(cat => (
+              <div key={cat.id} className="category-card">
+                <div
+                  className="category-card-header"
+                  onClick={() => toggleCategory(cat.id)}
                 >
-                  {/* Category Header */}
-                  <div 
-                    onClick={() => toggleCategory(cat.id)}
-                    style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-heading)' }}>
-                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: cat.color || '#2d8ddc' }} />
-                      {cat.name}
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                        ({cat.posts.length} 篇)
-                      </span>
+                  <div className="category-info-left">
+                    <span className="category-icon-box" style={{ fontSize: '1.25rem', userSelect: 'none' }}>
+                      {getDeterministicEmoji(cat.name)}
                     </span>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transform: cat.isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
-                      ▶
-                    </span>
-                  </div>
-
-                  {/* Collapsible Posts List */}
-                  {cat.isOpen && (
-                    <div style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)', padding: '1rem 1.5rem' }}>
-                      {cat.posts.length === 0 ? (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>该分类下暂无文章</p>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                          {cat.posts.map(post => {
-                            const date = new Date(post.create_time);
-                            const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                            return (
-                              <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.92rem' }}>
-                                <Link 
-                                  to={`/posts/${post.id}`} 
-                                  style={{ color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition)', fontWeight: 500 }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-primary)')}
-                                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-primary)')}
-                                >
-                                  📄 {post.title}
-                                </Link>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}>
-                                  {formattedDate}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                    <div>
+                      <h3 className="category-name">{cat.name}</h3>
+                      {cat.description && (
+                        <p className="category-desc">{cat.description}</p>
                       )}
                     </div>
-                  )}
+                  </div>
+                  <div className="category-info-right">
+                    <span className="category-badge">{cat.posts.length} 篇</span>
+                    <span className={`category-chevron ${cat.isOpen ? 'is-open' : ''}`}>
+                      <IconChevronRight size={16} />
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Expanded Post List under Category */}
+                {cat.isOpen && (
+                  <div className="category-posts-drawer">
+                    {cat.posts.length === 0 ? (
+                      <p className="drawer-empty">该分类下暂无文章</p>
+                    ) : (
+                      <ul className="drawer-list">
+                        {cat.posts.map(p => (
+                          <li key={p.id} className="drawer-item">
+                            <Link to={`/posts/${p.id}`} className="drawer-link">
+                              <span className="drawer-title">{p.title}</span>
+                              <span className="drawer-date">
+                                {new Date(p.create_time).toLocaleDateString('zh-CN')}
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="drawer-footer">
+                      <Link to={`/?category=${cat.slug}`} className="drawer-view-all">
+                        <IconBookOpen size={13} />
+                        <span>在首页中聚焦此分类</span>
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

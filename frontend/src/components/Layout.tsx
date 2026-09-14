@@ -1,7 +1,23 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useTransition } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Post } from '../utils/api';
+import { updateFavicon } from '../utils/favicon';
+import {
+  IconHome,
+  IconArchive,
+  IconFolder,
+  IconTag,
+  IconUser,
+  IconSearch,
+  IconSun,
+  IconMoon,
+  IconFeather,
+  IconClose,
+  IconArrowRight,
+  IconCalendar,
+  IconBookOpen,
+} from './Icons';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,9 +29,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     try {
       const cached = localStorage.getItem('blog_config');
       return cached ? JSON.parse(cached) : {};
-    } catch {}
-    return {};
+    } catch {
+      return {};
+    }
   });
+
   const [scrolled, setScrolled] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
@@ -23,18 +41,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
     return 'light';
   });
-  
+
   // Search Modal States
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [searchResults, setSearchResults] = useState<Post[]>([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
-  
+  const [, startTransition] = useTransition();
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.getConfig().then(setConfig).catch(console.error);
+    api.getConfig().then(data => {
+      setConfig(data);
+      if (data.homepage_bg) {
+        document.documentElement.style.setProperty('--hero-bg-image', `url("${data.homepage_bg}")`);
+      }
+    }).catch(console.error);
 
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -46,20 +70,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // 快捷键 Cmd+K / Ctrl+K 开启全局搜索
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowSearch(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // 动态 favicon 更新
   useEffect(() => {
     if (config.website_icon) {
-      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.getElementsByTagName('head')[0].appendChild(link);
-      }
-      link.href = config.website_icon;
+      updateFavicon(config.website_icon);
     }
   }, [config.website_icon]);
 
-  // 全局动态网页标题更新（支持“首页 - ${title}”，“标签 - ${title}”格式）
+  // 全局动态网页标题更新
   useEffect(() => {
     const updateTitle = () => {
       const baseTitle = config.website_title || '散漫的老何';
@@ -92,11 +122,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     setShowSearch(true);
     setSearchQuery('');
     setSearchResults([]);
-    
-    // Auto focus input
+
     setTimeout(() => {
       searchInputRef.current?.focus();
-    }, 100);
+    }, 80);
 
     if (allPosts.length === 0) {
       setLoadingSearch(true);
@@ -119,11 +148,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
       return;
     }
     const query = searchQuery.toLowerCase();
-    const filtered = allPosts.filter(post => 
-      post.title.toLowerCase().includes(query) || 
-      (post.content && post.content.toLowerCase().includes(query))
-    );
-    setSearchResults(filtered.slice(0, 10)); // Limit to top 10 results
+    startTransition(() => {
+      const filtered = allPosts.filter(post =>
+        post.title.toLowerCase().includes(query) ||
+        (post.content && post.content.toLowerCase().includes(query)) ||
+        (post.tags && post.tags.some(t => t.name.toLowerCase().includes(query))) ||
+        (post.categories && post.categories.some(c => c.name.toLowerCase().includes(query)))
+      );
+      setSearchResults(filtered.slice(0, 10));
+    });
   }, [searchQuery, allPosts]);
 
   // Handle Close Search on Escape Key
@@ -139,182 +172,218 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showSearch]);
 
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
   const siteTitle = config.website_title || '散漫的老何';
   const siteICP = config.website_icp || '湘ICP备20003211号-1';
 
   return (
     <div className="site-wrapper">
-      {/* Fixed Navbar */}
-      <nav className="navbar" style={scrolled ? { boxShadow: '0 2px 16px rgba(0,0,0,0.12)' } : {}}>
+      {/* Modern Fixed Navbar */}
+      <nav className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
         <div className="navbar-inner">
           <Link to="/" className="navbar-brand">
-            <span className="brand-icon">✈️</span>
-            {siteTitle}
+            <span className="brand-logo-wrap">
+              {config.website_avatar ? (
+                <img
+                  src={config.website_avatar}
+                  alt={siteTitle}
+                  style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.parentElement?.querySelector('.brand-logo-fallback') as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <span className="brand-logo-fallback" style={{ display: config.website_avatar ? 'none' : 'flex' }}>
+                <IconFeather size={17} />
+              </span>
+            </span>
+            <span className="brand-title">{siteTitle}</span>
           </Link>
 
-          <ul className="nav-links">
-            <li>
-              <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>
-                🏠 首页
-              </NavLink>
-            </li>
-            <li>
-              <NavLink to="/archives" className={({ isActive }) => isActive ? 'active' : ''}>
-                📂 归档
-              </NavLink>
-            </li>
-            <li>
-              <NavLink to="/categories" className={({ isActive }) => isActive ? 'active' : ''}>
-                📁 分类
-              </NavLink>
-            </li>
-            <li>
-              <NavLink to="/tags" className={({ isActive }) => isActive ? 'active' : ''}>
-                🏷️ 标签
-              </NavLink>
-            </li>
-            <li>
-              <NavLink to="/about" className={({ isActive }) => isActive ? 'active' : ''}>
-                👤 关于
-              </NavLink>
-            </li>
-            {/* Search Trigger NavLink */}
-            <li>
-              <button 
-                onClick={handleOpenSearch} 
-                className="nav-link-btn" 
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  cursor: 'pointer', 
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  padding: '0.4rem 0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  borderRadius: '6px',
-                  transition: 'var(--transition)'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.color = 'var(--color-primary)';
-                  e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
+          <div className="nav-right-group">
+            <ul className="nav-links">
+              <li>
+                <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+                  <IconHome size={16} />
+                  <span>首页</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/archives" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+                  <IconArchive size={16} />
+                  <span>归档</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/categories" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+                  <IconFolder size={16} />
+                  <span>分类</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/tags" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+                  <IconTag size={16} />
+                  <span>标签</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/about" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+                  <IconUser size={16} />
+                  <span>关于</span>
+                </NavLink>
+              </li>
+            </ul>
+
+            <div className="nav-actions">
+              {/* Search Trigger Button */}
+              <button
+                type="button"
+                onClick={handleOpenSearch}
+                className="nav-action-btn search-trigger-btn"
+                title="搜索文章 (Ctrl + K / ⌘K)"
               >
-                🔍 搜索
+                <IconSearch size={16} />
+                <span className="search-shortcut">⌘K</span>
               </button>
-            </li>
-            {/* Theme Toggle Trigger */}
-            <li>
-              <button 
-                onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} 
-                className="nav-link-btn" 
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  cursor: 'pointer', 
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  padding: '0.4rem 0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  borderRadius: '6px',
-                  transition: 'var(--transition)'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.color = 'var(--color-primary)';
-                  e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
+
+              {/* Theme Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="nav-action-btn theme-toggle-btn"
+                title={`切换为${theme === 'light' ? '暗色' : '浅色'}主题`}
               >
-                {theme === 'light' ? '🌙 深色' : '☀️ 浅色'}
+                {theme === 'light' ? <IconMoon size={16} /> : <IconSun size={16} />}
               </button>
-            </li>
-          </ul>
+            </div>
+          </div>
         </div>
       </nav>
 
-      {/* Hero or spacer */}
-      {hero ? hero : <div style={{ height: 'var(--navbar-height)' }} />}
+      {/* Hero Section if available */}
+      {hero}
 
-      {/* Page Body */}
-      <div className="page-body">
+      {/* Page Body Container */}
+      <main className={`page-body ${hero ? 'body-with-hero' : 'body-no-hero'}`}>
         {children}
-      </div>
+      </main>
 
-      {/* Footer */}
-      <footer className="site-footer">
-        <p>© {new Date().getFullYear()} {siteTitle}. All Rights Reserved.</p>
-        <p>
-          Powered by Flask &amp; React ·&nbsp;
-          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">{siteICP}</a>
-        </p>
+      {/* Modern Minimalist Footer */}
+      <footer className="footer">
+        <div className="footer-inner">
+          <div className="footer-top">
+            <div className="footer-brand">
+              <span className="footer-logo">
+                <IconFeather size={16} />
+              </span>
+              <span className="footer-site-name">{siteTitle}</span>
+              <span className="footer-dot">·</span>
+              <span className="footer-slogan">记录沉淀，散漫前行</span>
+            </div>
+            <div className="footer-links">
+              <Link to="/archives">归档</Link>
+              <Link to="/about">关于本站</Link>
+              <Link to="/admin" className="footer-admin-link">控制台</Link>
+            </div>
+          </div>
+
+          <div className="footer-bottom">
+            <p className="footer-copy">
+              © {new Date().getFullYear()} {siteTitle}. All rights reserved.
+            </p>
+            {siteICP && (
+              <p className="footer-icp">
+                <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+                  {siteICP}
+                </a>
+              </p>
+            )}
+          </div>
+        </div>
       </footer>
 
-      {/* Search Modal Overlay */}
+      {/* Spotlight Search Modal */}
       {showSearch && (
-        <div className="search-modal-overlay" onClick={() => setShowSearch(false)}>
-          <div className="search-modal-container" onClick={e => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="search-modal-header">
-              <div className="search-modal-input-wrapper">
-                <span>🔍</span>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="搜索文章标题或内容..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <button className="search-modal-close" onClick={() => setShowSearch(false)}>
-                &times;
-              </button>
+        <div className="spotlight-overlay" onClick={() => setShowSearch(false)}>
+          <div className="spotlight-container" onClick={e => e.stopPropagation()}>
+            <div className="spotlight-input-bar">
+              <span className="spotlight-icon">
+                <IconSearch size={18} />
+              </span>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="键入关键词搜索文章内容、标签或分类..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="spotlight-input"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  className="spotlight-clear-btn"
+                  onClick={() => setSearchQuery('')}
+                  title="清空"
+                >
+                  <IconClose size={15} />
+                </button>
+              ) : (
+                <kbd className="spotlight-kbd">ESC</kbd>
+              )}
             </div>
 
-            {/* Results */}
-            <ul className="search-modal-results">
+            <div className="spotlight-body">
               {loadingSearch ? (
-                <div className="loading-wrap" style={{ padding: '2rem' }}>
-                  <span className="loading-dot" /><span className="loading-dot" /><span className="loading-dot" />
-                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>正在初始化搜索索引...</p>
-                </div>
-              ) : searchQuery && searchResults.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  没有找到包含 "{searchQuery}" 的文章
-                </div>
-              ) : !searchQuery ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  输入关键词，开启全站智能瞬时搜索
-                </div>
+                <div className="spotlight-empty">正在加载全文索引...</div>
+              ) : searchQuery.trim() ? (
+                searchResults.length > 0 ? (
+                  <ul className="spotlight-results">
+                    {searchResults.map(post => (
+                      <li key={post.id} className="spotlight-item">
+                        <Link to={`/posts/${post.id}`} onClick={() => setShowSearch(false)}>
+                          <div className="spotlight-item-header">
+                            <h4 className="spotlight-item-title">{post.title}</h4>
+                            <span className="spotlight-item-arrow">
+                              <IconArrowRight size={14} />
+                            </span>
+                          </div>
+                          {(post.summary || post.meta_description) && (
+                            <p className="spotlight-item-desc">{post.summary || post.meta_description}</p>
+                          )}
+                          <div className="spotlight-item-meta">
+                            <span className="spotlight-meta-date">
+                              <IconCalendar size={13} />
+                              {new Date(post.create_time).toLocaleDateString('zh-CN')}
+                            </span>
+                            {post.categories && post.categories.length > 0 && (
+                              <span className="spotlight-meta-cat">
+                                <IconFolder size={13} />
+                                {post.categories[0].name}
+                              </span>
+                            )}
+                            <span className="spotlight-meta-read">
+                              <IconBookOpen size={13} />
+                              约 {Math.max(1, Math.ceil((post.content?.length || 0) / 600))} 分钟
+                            </span>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="spotlight-empty">未搜索到与 “{searchQuery}” 匹配的内容</div>
+                )
               ) : (
-                searchResults.map(post => {
-                  const plainContent = post.content ? post.content.replace(/[#*`_[\]()>]/g, '').trim() : '';
-                  return (
-                    <li key={post.id} className="search-result-item" onClick={() => setShowSearch(false)}>
-                      <Link to={`/posts/${post.id}`}>
-                        <div className="search-result-title">{post.title}</div>
-                        {plainContent && (
-                          <div className="search-result-preview">{plainContent}</div>
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })
+                <div className="spotlight-tip">
+                  支持按文章标题、正文内容、标签分类快速检索
+                </div>
               )}
-            </ul>
+            </div>
           </div>
         </div>
       )}

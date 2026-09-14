@@ -1,25 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
 import { api, type OssImage, type Post } from '../utils/api';
+import { copyToClipboard, toAbsoluteUrl } from '../utils/clipboard';
 
 // ── 工具函数 ──────────────────────────────────────────────
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('zh-CN', {
     year: 'numeric', month: '2-digit', day: '2-digit',
-  });
-}
-
-function copyToClipboard(text: string, onDone?: () => void) {
-  navigator.clipboard.writeText(text).then(() => onDone?.()).catch(() => {
-    // 兜底方案
-    const el = document.createElement('textarea');
-    el.value = text;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
-    onDone?.();
   });
 }
 
@@ -40,7 +28,8 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ image, onClose, onAssign })
   }, [onClose]);
 
   const handleCopy = () => {
-    copyToClipboard(image.url, () => {
+    const fullUrl = toAbsoluteUrl(image.url);
+    copyToClipboard(fullUrl, () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -62,18 +51,18 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ image, onClose, onAssign })
           </div>
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
-              className="btn btn-primary"
-              style={{ fontSize: '0.85rem', padding: '0.45rem 1.1rem' }}
+              className="admin-btn admin-btn-primary admin-btn-sm"
+              style={{ padding: '0.45rem 1.1rem' }}
               onClick={handleCopy}
             >
-              {copied ? '✅ 已复制' : '📋 复制链接'}
+              {copied ? '已复制' : '复制链接'}
             </button>
             <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.85rem', padding: '0.45rem 1.1rem', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)' }}
+              className="admin-btn admin-btn-secondary admin-btn-sm"
+              style={{ padding: '0.45rem 1.1rem' }}
               onClick={() => { onAssign(image); onClose(); }}
             >
-              🔗 分配给文章
+              分配给文章
             </button>
           </div>
         </div>
@@ -138,7 +127,7 @@ const AssignPanel: React.FC<AssignPanelProps> = ({ image, onClose, onSuccess }) 
   return (
     <div className="oss-assign-panel">
       <div className="oss-assign-header">
-        <h3>🔗 分配文章封面</h3>
+        <h3>分配文章封面</h3>
         <button
           onClick={onClose}
           style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 1 }}
@@ -163,7 +152,10 @@ const AssignPanel: React.FC<AssignPanelProps> = ({ image, onClose, onSuccess }) 
         </div>
 
         <div className="oss-assign-search">
-          <span>🔍</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
           <input
             placeholder="搜索文章标题..."
             value={search}
@@ -237,6 +229,11 @@ export const AdminOssImages: React.FC = () => {
   const [addUrls, setAddUrls] = useState('');
   const [adding, setAdding] = useState(false);
 
+  const [uploadMode, setUploadMode] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [importing, setImporting] = useState(false);
 
   const [previewImg, setPreviewImg] = useState<OssImage | null>(null);
@@ -252,13 +249,13 @@ export const AdminOssImages: React.FC = () => {
 
   const PER_PAGE = 24;
 
-  const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
+  const showMsg = useCallback((text: string, type: 'success' | 'error' = 'success') => {
     setMsg(text);
     setMsgType(type);
     setTimeout(() => setMsg(''), 4000);
-  };
+  }, []);
 
-  const loadImages = useCallback((p = 1, q = search) => {
+  const loadImages = useCallback((p = 1, q = '') => {
     setLoading(true);
     setSelectedIds(new Set());
     api.adminOssGetImages({ page: p, per_page: PER_PAGE, search: q })
@@ -273,9 +270,9 @@ export const AdminOssImages: React.FC = () => {
         showMsg(err.message || '获取图片库失败', 'error');
         setLoading(false);
       });
-  }, [search]);
+  }, [showMsg]);
 
-  useEffect(() => { loadImages(1, ''); }, []);
+  useEffect(() => { loadImages(1, ''); }, [loadImages]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,6 +298,27 @@ export const AdminOssImages: React.FC = () => {
       showMsg((err as Error).message || '添加失败', 'error');
     } finally {
       setAdding(false);
+    }
+  };
+
+  // ── 本地图片文件上传 ──
+  const handleFilesUpload = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+    if (files.length === 0) {
+      showMsg('请选择有效的图片文件（PNG, JPG, WebP, GIF, SVG 等）', 'error');
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await api.uploadImages(files);
+      showMsg(res.msg || `成功上传 ${files.length} 张图片！`);
+      setUploadMode(false);
+      loadImages(1, search);
+    } catch (err: unknown) {
+      showMsg((err as Error).message || '上传失败', 'error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -351,7 +369,8 @@ export const AdminOssImages: React.FC = () => {
   // ── 复制链接 ──
   const handleCopy = (img: OssImage, e: React.MouseEvent) => {
     e.stopPropagation();
-    copyToClipboard(img.url, () => {
+    const fullUrl = toAbsoluteUrl(img.url);
+    copyToClipboard(fullUrl, () => {
       setCopiedId(img.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
@@ -362,7 +381,11 @@ export const AdminOssImages: React.FC = () => {
     e.stopPropagation();
     setSelectedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -375,23 +398,27 @@ export const AdminOssImages: React.FC = () => {
   return (
     <AdminLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <h2 style={{ fontFamily: 'var(--font-heading)', margin: 0 }}>🖼️ OSS 图片库</h2>
+        <h2 style={{ fontFamily: 'var(--font-heading)', margin: 0 }}>OSS 图片库</h2>
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
           <button
-            className="btn btn-secondary"
-            style={{ fontSize: '0.85rem' }}
+            className="admin-btn admin-btn-secondary admin-btn-sm"
             onClick={handleImport}
             disabled={importing}
             title="将所有文章的封面图链接批量导入到图片库"
           >
-            {importing ? '导入中…' : '📥 从文章导入封面链接'}
+            {importing ? '导入中…' : '从文章导入封面链接'}
           </button>
           <button
-            className="btn btn-primary"
-            style={{ fontSize: '0.85rem' }}
-            onClick={() => setAddMode(v => !v)}
+            className="admin-btn admin-btn-primary admin-btn-sm"
+            onClick={() => { setUploadMode(v => !v); setAddMode(false); }}
           >
-            {addMode ? '✕ 取消' : '➕ 添加图片 URL'}
+            {uploadMode ? '✕ 取消上传' : '上传本地图片'}
+          </button>
+          <button
+            className="admin-btn admin-btn-secondary admin-btn-sm"
+            onClick={() => { setAddMode(v => !v); setUploadMode(false); }}
+          >
+            {addMode ? '✕ 取消' : '粘贴外链 URL'}
           </button>
         </div>
       </div>
@@ -400,6 +427,58 @@ export const AdminOssImages: React.FC = () => {
       {msg && (
         <div className={`alert ${msgType === 'error' ? 'alert-error' : 'alert-success'}`}>
           {msg}
+        </div>
+      )}
+
+      {/* 本地图片上传区域 */}
+      {uploadMode && (
+        <div
+          className="oss-add-url-area"
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files) handleFilesUpload(e.dataTransfer.files);
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border: dragOver ? '2px dashed var(--admin-accent)' : '2px dashed var(--admin-card-border)',
+            textAlign: 'center',
+            padding: '2rem 1.5rem',
+            borderRadius: '12px',
+            backgroundColor: dragOver ? 'rgba(99, 102, 241, 0.08)' : 'var(--admin-card-bg)',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            marginBottom: '1.5rem',
+          }}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            multiple
+            accept="image/*"
+            onChange={e => {
+              if (e.target.files) handleFilesUpload(e.target.files);
+            }}
+          />
+          <div style={{ color: 'var(--admin-accent)', marginBottom: '0.5rem' }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>
+            {uploading ? '正在上传图片并写入索引...' : '点击选择图片文件，或直接拖拽图片到此区域'}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-3)' }}>
+            支持 JPG, PNG, GIF, WebP, SVG 格式，支持多文件并发。上传后自动写入图片库索引与随机封面库。
+          </div>
+          {uploading && (
+            <div style={{ marginTop: '1rem', color: 'var(--admin-accent)', fontWeight: 600 }}>
+              ⏳ 上传处理中，请稍候...
+            </div>
+          )}
         </div>
       )}
 
@@ -419,16 +498,14 @@ export const AdminOssImages: React.FC = () => {
           </div>
           <div style={{ display: 'flex', gap: '0.6rem' }}>
             <button
-              className="btn btn-primary"
-              style={{ fontSize: '0.85rem' }}
+              className="admin-btn admin-btn-primary admin-btn-sm"
               onClick={handleAddUrls}
               disabled={adding || !addUrls.trim()}
             >
-              {adding ? '添加中…' : '✅ 确认添加'}
+              {adding ? '添加中…' : '确认添加'}
             </button>
             <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.85rem' }}
+              className="admin-btn admin-btn-secondary admin-btn-sm"
               onClick={() => { setAddMode(false); setAddUrls(''); }}
             >
               取消
@@ -441,7 +518,10 @@ export const AdminOssImages: React.FC = () => {
       <div className="oss-toolbar">
         <form onSubmit={handleSearch} style={{ display: 'contents' }}>
           <div className="oss-search-box">
-            <span>🔍</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
             <input
               placeholder="搜索文件名或 URL…"
               value={searchInput}
@@ -455,17 +535,16 @@ export const AdminOssImages: React.FC = () => {
               >✕</button>
             )}
           </div>
-          <button type="submit" className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>搜索</button>
+          <button type="submit" className="admin-btn admin-btn-secondary admin-btn-sm">搜索</button>
         </form>
 
         {selectedIds.size > 0 && (
           <button
-            className="btn"
-            style={{ fontSize: '0.85rem', background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5' }}
+            className="admin-btn admin-btn-danger admin-btn-sm"
             onClick={handleBatchDelete}
             disabled={batchDeleting}
           >
-            {batchDeleting ? '删除中…' : `🗑️ 批量移除 (${selectedIds.size})`}
+            {batchDeleting ? '删除中…' : `批量移除 (${selectedIds.size})`}
           </button>
         )}
       </div>
@@ -474,7 +553,7 @@ export const AdminOssImages: React.FC = () => {
       {!loading && (
         <div className="oss-stats-bar">
           <span>共 <strong>{total}</strong> 张图片</span>
-          {search && <span>· 搜索关键词：<strong>"{search}"</strong></span>}
+          {search && <span>· 搜索关键词：<strong>\"{search}\"</strong></span>}
           {selectedIds.size > 0 && <span>· 已选 <strong>{selectedIds.size}</strong> 张</span>}
         </div>
       )}
@@ -487,7 +566,13 @@ export const AdminOssImages: React.FC = () => {
         </div>
       ) : images.length === 0 ? (
         <div className="oss-empty-state">
-          <div className="oss-empty-icon">🖼️</div>
+          <div className="oss-empty-icon" style={{ opacity: 0.3 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>
+          </div>
           <div style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>图片库为空</div>
           <div style={{ fontSize: '0.85rem' }}>
             {search
@@ -532,7 +617,7 @@ export const AdminOssImages: React.FC = () => {
                   if (parent && !parent.querySelector('.oss-image-thumb-placeholder')) {
                     const ph = document.createElement('div');
                     ph.className = 'oss-image-thumb-placeholder';
-                    ph.textContent = '🖼️';
+                    ph.textContent = 'IMG';
                     parent.insertBefore(ph, target.nextSibling);
                   }
                 }}
@@ -556,21 +641,21 @@ export const AdminOssImages: React.FC = () => {
                   onClick={e => handleCopy(img, e)}
                   title="复制图片 URL"
                 >
-                  {copiedId === img.id ? '✅ 已复制' : '📋 复制'}
+                  {copiedId === img.id ? '已复制' : '复制'}
                 </button>
                 <button
                   className="oss-action-btn"
                   onClick={e => { e.stopPropagation(); setAssignImg(img); }}
                   title="分配给文章"
                 >
-                  🔗 分配
+                  分配
                 </button>
                 <button
                   className="oss-action-btn danger"
                   onClick={e => handleDelete(img, e)}
                   title="从图片库移除"
                 >
-                  🗑️
+                  移除
                 </button>
               </div>
             </div>

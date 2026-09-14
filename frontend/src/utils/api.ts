@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 
 export interface Post {
   id: number;
@@ -11,6 +11,7 @@ export interface Post {
   create_time: string;
   update_time: string;
   meta_description: string | null;
+  summary: string | null;
   categories: { id: number; name: string; slug: string; color: string }[];
   tags: { id: number; name: string; slug: string; color: string }[];
 }
@@ -45,6 +46,46 @@ export interface SystemEnv {
   mem_usage: number;
 }
 
+export interface BlogStats {
+  total_posts: number;
+  published_posts: number;
+  draft_posts: number;
+  total_categories: number;
+  total_tags: number;
+  total_views: number;
+  total_words: number;
+  avg_words: number;
+  with_cover_posts: number;
+  without_cover_posts: number;
+  top_posts: Array<{
+    id: number;
+    title: string;
+    access_count: number;
+    create_time: string;
+  }>;
+  recent_posts: Array<{
+    id: number;
+    title: string;
+    status: number;
+    create_time: string;
+  }>;
+  ai_scheduler?: {
+    enabled: boolean;
+    cron: string;
+    threads: number;
+    running: boolean;
+    is_batch_running: boolean;
+    in_flight_count: number;
+    last_run_time: string;
+    next_run_time: string;
+    processed_count: number;
+    pending_categories_count: number;
+    pending_tags_count: number;
+    pending_summary_count: number;
+    total_pending: number;
+  };
+}
+
 export interface OssImage {
   id: number;
   url: string;
@@ -75,10 +116,18 @@ async function apiFetch(path: string, options: RequestInit = {}) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_BASE_URL}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err: unknown) {
+    const error = err as Error;
+    console.error(`[API Network Error] 请求 ${url} 失败:`, error.message);
+    throw new Error(`网络请求失败(${error.message})，请确认后端 Flask 服务已启动`);
+  }
 
   if (response.status === 401) {
     localStorage.removeItem('blog_token');
@@ -121,6 +170,13 @@ export const api = {
     return apiFetch('/api/auth/me');
   },
 
+  changePassword: (data: { old_password: string; new_password: string }): Promise<{ msg: string }> => {
+    return apiFetch('/api/manage/user/password', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   // Public Posts, Categories, Tags & Config
   getPosts: (params: { page?: number; per_page?: number; category?: string; tag?: string; search?: string } = {}) => {
     const query = new URLSearchParams();
@@ -157,12 +213,16 @@ export const api = {
   },
 
   // Admin Manage APIs
-  adminGetPosts: (params: { page?: number; per_page?: number; search?: string } = {}) => {
+  adminGetPosts: (params: { page?: number; per_page?: number; search?: string; status?: number; category_id?: number; sort_by?: string; sort_order?: string } = {}) => {
     const query = new URLSearchParams();
     if (params.page) query.set('page', params.page.toString());
     if (params.per_page) query.set('per_page', params.per_page.toString());
     if (params.search) query.set('search', params.search);
-    
+    if (params.status !== undefined && params.status !== null) query.set('status', params.status.toString());
+    if (params.category_id) query.set('category_id', params.category_id.toString());
+    if (params.sort_by) query.set('sort_by', params.sort_by);
+    if (params.sort_order) query.set('sort_order', params.sort_order);
+
     return apiFetch(`/api/manage/posts?${query.toString()}`);
   },
 
@@ -170,14 +230,14 @@ export const api = {
     return apiFetch(`/api/manage/posts/${id}`);
   },
 
-  adminCreatePost: (post: { title: string; content: string; status: number; category_id?: number; tag_ids: number[] }): Promise<Post> => {
+  adminCreatePost: (post: { title: string; content: string; status: number; category_id?: number; tag_ids: number[]; thumbnail?: string | null; meta_description?: string | null; summary?: string | null }): Promise<Post> => {
     return apiFetch('/api/manage/posts', {
       method: 'POST',
       body: JSON.stringify(post),
     });
   },
 
-  adminUpdatePost: (id: number, post: { title?: string; content?: string; status?: number; category_id?: number | null; tag_ids?: number[] }): Promise<Post> => {
+  adminUpdatePost: (id: number, post: { title?: string; content?: string; status?: number; category_id?: number | null; tag_ids?: number[]; thumbnail?: string | null; meta_description?: string | null; summary?: string | null }): Promise<Post> => {
     return apiFetch(`/api/manage/posts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(post),
@@ -192,6 +252,10 @@ export const api = {
 
   adminGetEnv: (): Promise<SystemEnv> => {
     return apiFetch('/api/manage/env');
+  },
+
+  adminGetStats: (): Promise<BlogStats> => {
+    return apiFetch('/api/manage/stats');
   },
 
   // Admin Categories & Tags
@@ -282,5 +346,137 @@ export const api = {
 
   adminOssImportFromPosts: (): Promise<{ msg: string; added: number; skipped: number }> => {
     return apiFetch('/api/manage/oss/import-from-posts', { method: 'POST' });
+  },
+
+  adminImportPosts: (file: File): Promise<{ msg: string; imported: number; skipped: number; titles: string[]; errors: string[] }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiFetch('/api/manage/posts/import', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  adminBatchPosts: (action: 'delete' | 'publish' | 'draft', ids: number[]): Promise<{ msg: string; affected: number }> => {
+    return apiFetch('/api/manage/posts/batch', {
+      method: 'POST',
+      body: JSON.stringify({ action, ids }),
+    });
+  },
+
+  // Upload APIs
+  uploadImage: async (file: File, remark?: string): Promise<{ msg: string; url: string; file_name: string; id: number | null }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (remark) formData.append('remark', remark);
+    return apiFetch('/api/manage/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  uploadImages: async (files: File[], remark?: string): Promise<{ msg: string; url: string; file_name: string; id: number | null; items: Array<{ url: string; file_name: string; id: number | null }> }> => {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    if (remark) formData.append('remark', remark);
+    return apiFetch('/api/manage/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  // LLM AI Assistant APIs
+  aiAnalyzeTaxonomy: (data: { title: string; content: string }): Promise<{
+    category: { id: number; name: string; slug: string } | null;
+    tags: Array<{ id: number; name: string; slug: string }>;
+    created_categories: Array<{ id: number; name: string; slug: string }>;
+    created_tags: Array<{ id: number; name: string; slug: string }>;
+  }> => {
+    return apiFetch('/api/manage/ai/analyze-taxonomy', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  aiGenerateSummary: (data: { title: string; content: string }): Promise<{ summary: string }> => {
+    return apiFetch('/api/manage/ai/generate-summary', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  aiProofread: (data: { content: string }): Promise<{ revised_content: string; suggestions: string[] }> => {
+    return apiFetch('/api/manage/ai/proofread', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  aiExpand: (data: { title: string; content: string; instruction?: string }): Promise<{ expanded_content: string }> => {
+    return apiFetch('/api/manage/ai/expand', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  aiTestConnection: (data?: { api_key?: string; base_url?: string; model?: string }): Promise<{ success: boolean; msg: string; reply?: string }> => {
+    return apiFetch('/api/manage/ai/test-connection', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  },
+
+  // AI Scheduler Management & Logs
+  aiGetSchedulerStatus: (): Promise<{
+    enabled: boolean;
+    cron: string;
+    threads: number;
+    running: boolean;
+    is_batch_running: boolean;
+    in_flight_count: number;
+    last_run_time: string;
+    next_run_time: string;
+    processed_count: number;
+    pending_categories_count: number;
+    pending_tags_count: number;
+    pending_summary_count: number;
+    total_pending: number;
+  }> => {
+    return apiFetch('/api/manage/ai/scheduler/status');
+  },
+
+  aiSetSchedulerCron: (cron: string): Promise<{ success: boolean; msg: string; status: any }> => {
+    return apiFetch('/api/manage/ai/scheduler/cron', {
+      method: 'POST',
+      body: JSON.stringify({ cron }),
+    });
+  },
+
+  aiSetSchedulerThreads: (threads: number): Promise<{ success: boolean; msg: string; status: any }> => {
+    return apiFetch('/api/manage/ai/scheduler/threads', {
+      method: 'POST',
+      body: JSON.stringify({ threads }),
+    });
+  },
+
+  aiToggleScheduler: (enabled: boolean): Promise<{ enabled: boolean }> => {
+    return apiFetch('/api/manage/ai/scheduler/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+  },
+
+  aiTriggerScheduler: (): Promise<{ msg: string; count: number }> => {
+    return apiFetch('/api/manage/ai/scheduler/trigger', {
+      method: 'POST',
+    });
+  },
+
+  aiGetSchedulerLogs: (): Promise<{
+    logs: Array<{ time: string; level: 'INFO' | 'SUCCESS' | 'WARN' | 'ERROR'; message: string }>;
+  }> => {
+    return apiFetch('/api/manage/ai/scheduler/logs');
   },
 };

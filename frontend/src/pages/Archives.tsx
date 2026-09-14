@@ -3,17 +3,8 @@ import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Post } from '../utils/api';
 import { Layout } from '../components/Layout';
-
-// Archives Hero Banner
-const ArchivesHero: React.FC = () => (
-  <div className="page-hero">
-    <div className="hero-mask" />
-    <div className="hero-content">
-      <h1 className="hero-title">📂 归档</h1>
-      <div className="hero-subtitle">时光荏苒，岁月留痕</div>
-    </div>
-  </div>
-);
+import { IconArchive, IconFolder } from '../components/Icons';
+import { PageHeroBanner } from '../components/PageHeroBanner';
 
 interface YearGroup {
   year: number;
@@ -27,14 +18,13 @@ export const Archives: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    document.title = '归档 - 散漫的老何';
+    document.title = '文章归档 - 散漫的老何';
     setLoading(true);
     api.getPosts({ per_page: 9999 })
       .then(data => {
         const postsList: Post[] = data.posts;
         setTotalCount(postsList.length);
 
-        // Group posts by year
         const map = new Map<number, Post[]>();
         postsList.forEach(post => {
           const date = new Date(post.create_time);
@@ -45,7 +35,6 @@ export const Archives: React.FC = () => {
           map.get(year)!.push(post);
         });
 
-        // Convert to sorted array
         const sortedGroups: YearGroup[] = Array.from(map.entries())
           .map(([year, posts]) => ({ year, posts }))
           .sort((a, b) => b.year - a.year);
@@ -59,56 +48,60 @@ export const Archives: React.FC = () => {
       });
   }, []);
 
+  const hero = (
+    <PageHeroBanner
+      tag="CHRONOLOGICAL ARCHIVE"
+      tagIcon={<IconArchive size={14} />}
+      title="文章归档"
+      subtitle={`按时间脉络梳理的技术实践与杂想 · 共计 ${totalCount} 篇文章`}
+    />
+  );
+
   return (
-    <Layout hero={<ArchivesHero />}>
-      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '1rem 0' }}>
+    <Layout hero={hero}>
+      <div className="page-shell">
         {loading ? (
-          <div className="loading-wrap">
-            <div>
-              <span className="loading-dot" /><span className="loading-dot" /><span className="loading-dot" />
-            </div>
-            <p style={{ marginTop: '1rem', fontSize: '0.9rem' }}>加载归档中...</p>
+          <div className="loading-state">
+            <div className="loading-spinner" />
+            <p>正在拉取历史脉络...</p>
           </div>
         ) : error ? (
-          <div className="alert alert-error">{error}</div>
+          <div className="alert-box alert-error">{error}</div>
+        ) : groups.length === 0 ? (
+          <div className="empty-state-box">
+            <h3>暂无归档文章</h3>
+            <p>目前还没有已发布的文章归档。</p>
+          </div>
         ) : (
-          <div style={{ background: 'var(--bg-card)', padding: '2.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)' }}>
-            <p style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '1.5rem' }}>
-              📊 目前共计 <strong style={{ color: 'var(--color-primary)' }}>{totalCount}</strong> 篇文章。继续努力！
-            </p>
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', marginBottom: '2rem' }} />
-
-            {/* Timeline */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {groups.map(group => (
-                <div key={group.year}>
-                  <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-heading)', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-                    {group.year}
-                  </h2>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: '2px solid var(--color-primary-light)', paddingLeft: '1.25rem', marginLeft: '0.5rem' }}>
-                    {group.posts.map(post => {
-                      const date = new Date(post.create_time);
-                      const monthDay = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                      return (
-                        <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.95rem' }}>
-                          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', minWidth: '50px' }}>
-                            {monthDay}
-                          </span>
-                          <Link 
-                            to={`/posts/${post.id}`} 
-                            style={{ color: 'var(--text-primary)', fontWeight: 500, fontSize: '1.05rem', textDecoration: 'none', transition: 'var(--transition)' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-primary)')}
-                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-primary)')}
-                          >
-                            {post.title}
-                          </Link>
-                        </div>
-                      );
-                    })}
-                  </div>
+          <div className="timeline-container">
+            {groups.map(group => (
+              <section key={group.year} className="timeline-year-group">
+                <div className="timeline-year-header">
+                  <span className="year-pill">{group.year}</span>
+                  <span className="year-count">{group.posts.length} 篇</span>
                 </div>
-              ))}
-            </div>
+                <div className="timeline-items">
+                  {group.posts.map(post => {
+                    const d = new Date(post.create_time);
+                    const monthDay = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    return (
+                      <article key={post.id} className="timeline-item">
+                        <span className="timeline-date">{monthDay}</span>
+                        <Link to={`/posts/${post.id}`} className="timeline-title-link">
+                          {post.title}
+                        </Link>
+                        {post.categories && post.categories.length > 0 && (
+                          <span className="timeline-cat-badge">
+                            <IconFolder size={11} />
+                            {post.categories[0].name}
+                          </span>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>

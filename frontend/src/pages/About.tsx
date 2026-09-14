@@ -1,29 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../utils/api';
 import { Layout } from '../components/Layout';
-
-const AboutHero: React.FC = () => (
-  <div className="page-hero">
-    <div className="hero-mask" />
-    <div className="hero-content">
-      <h1 className="hero-title">👤 关于</h1>
-      <div className="hero-subtitle">关于我，关于这个站点</div>
-    </div>
-  </div>
-);
+import { IconUser, IconFeather } from '../components/Icons';
+import { PageHeroBanner } from '../components/PageHeroBanner';
 
 export const About: React.FC = () => {
   const [config, setConfig] = useState<Record<string, string>>(() => {
     try {
       const cached = localStorage.getItem('blog_config');
       return cached ? JSON.parse(cached) : {};
-    } catch {}
-    return {};
+    } catch {
+      return {};
+    }
   });
   const [loading, setLoading] = useState(() => Object.keys(config).length === 0);
 
   useEffect(() => {
-    document.title = '关于 - 散漫的老何';
+    document.title = '关于本站 - 散漫的老何';
     api.getConfig()
       .then(data => {
         setConfig(data);
@@ -35,134 +28,111 @@ export const About: React.FC = () => {
       });
   }, []);
 
-  const siteTitle = config.website_title || '需要哈气的纸飞机';
-  const siteDesc = config.website_desc || '感谢关注我的网站，本站是使用 Flask + React 架构进行搭建。对文章有任何疑惑或建议，欢迎联系我！';
+  const siteTitle = config.website_title || '散漫的老何';
+  const siteDesc = config.website_desc || '这是基于现代技术栈构建的个人博客与数字花园。专注于系统运维、数据工程、安全运营与日常开发实践。';
+  const aboutSubtitle = config.about_profile_subtitle || '安全运营 / 数据分析 / 自动化运维 / 独立技术记录者';
+
+  const hero = (
+    <PageHeroBanner
+      tag="AUTHOR & ABOUT"
+      tagIcon={<IconUser size={14} />}
+      title="关于作者与站点"
+      subtitle="记录技术探索与工程实践，于碎片化的网络世界中保持专注与思考"
+    />
+  );
 
   return (
-    <Layout hero={<AboutHero />}>
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '1rem 0' }}>
+    <Layout hero={hero}>
+      <div className="page-shell">
         {loading ? (
-          <div className="loading-wrap">
-            <div>
-              <span className="loading-dot" /><span className="loading-dot" /><span className="loading-dot" />
-            </div>
-            <p style={{ marginTop: '1rem', fontSize: '0.9rem' }}>加载中...</p>
+          <div className="loading-state">
+            <div className="loading-spinner" />
+            <p>正在读取站长自述...</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
-            
-            {/* Avatar and Profile Card */}
-            <div style={{
-              width: '100%',
-              background: 'var(--bg-card)',
-              borderRadius: 'var(--border-radius)',
-              border: '1px solid var(--border-color)',
-              boxShadow: 'var(--shadow-card)',
-              padding: '3rem 2rem 2.5rem',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              position: 'relative',
-              textAlign: 'center'
-            }}>
-              
-              {/* Avatar Shield */}
-              <div style={{
-                width: '110px',
-                height: '110px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea 0%, #2d8ddc 100%)',
-                boxShadow: '0 8px 24px rgba(45,141,220,0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '3.5rem',
-                border: '4px solid #fff',
-                position: 'absolute',
-                top: '-55px',
-                zIndex: 1,
-                userSelect: 'none'
-              }}>
-                ✈️
+          <div className="about-content-layout">
+            {/* Author Profile Card */}
+            <div className="about-profile-card">
+              <div className="about-avatar-wrapper">
+                {config.website_avatar ? (
+                  <img
+                    src={config.website_avatar}
+                    alt={siteTitle}
+                    className="about-avatar-img"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.parentElement?.querySelector('.about-avatar-symbol') as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <span
+                  className="about-avatar-symbol"
+                  style={{ display: config.website_avatar ? 'none' : 'flex' }}
+                >
+                  <IconFeather size={32} />
+                </span>
               </div>
+              <h2 className="about-author-name">{siteTitle}</h2>
+              <p className="about-author-subtitle">{aboutSubtitle}</p>
 
-              <div style={{ marginTop: '30px' }}>
-                <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-heading)', marginBottom: '0.5rem' }}>
-                  {siteTitle}
-                </h2>
-                <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontWeight: 500 }}>
-                  {config.about_profile_subtitle || '💻 不专业的黑客 / 安全运营 / Splunk专家 / 技术博主'}
-                </p>
-                
-                {/* Social links */}
-                <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                  <a 
-                    href="https://github.com/Hesccc" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: 'var(--bg-page)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-secondary)',
-                      fontSize: '1.25rem',
-                      transition: 'var(--transition)'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.color = 'var(--color-primary)';
-                      e.currentTarget.style.borderColor = 'var(--color-primary)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                    }}
-                  >
-                    🐙
-                  </a>
-                  <a 
-                    href="mailto:mr.hesc@outlook.com"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: 'var(--bg-page)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-secondary)',
-                      fontSize: '1.25rem',
-                      transition: 'var(--transition)'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.color = 'var(--color-primary)';
-                      e.currentTarget.style.borderColor = 'var(--color-primary)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                    }}
-                  >
-                    ✉️
-                  </a>
-                </div>
-              </div>
- 
-              <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border-color)', marginBottom: '1.5rem' }} />
- 
-              {/* Bio description */}
-              <div style={{ maxWidth: '600px', lineHeight: 1.8, color: 'var(--text-primary)', fontSize: '1.05rem', textAlign: 'left', width: '100%' }}>
-                <div style={{ whiteSpace: 'pre-wrap', marginBottom: '1.5rem' }}>
-                  {config.about_content || siteDesc}
-                </div>
+              {/* Social Channels */}
+              <div className="about-social-row">
+                <a
+                  href="https://github.com/Hesccc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-btn"
+                  title="GitHub"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                  </svg>
+                  <span>GitHub</span>
+                </a>
+                <a
+                  href="mailto:mr.hesc@outlook.com"
+                  className="social-btn"
+                  title="Email"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <span>Email</span>
+                </a>
               </div>
             </div>
 
+            {/* Narrative & Manifesto Section */}
+            <div className="about-narrative-card">
+              <div className="narrative-section">
+                <h3 className="narrative-title">关于博客</h3>
+                <p className="narrative-body">{siteDesc}</p>
+              </div>
+
+              {(config.about_content || config.about_profile_content) && (
+                <div className="narrative-section">
+                  <h3 className="narrative-title">个人自述</h3>
+                  <div className="narrative-body" style={{ whiteSpace: 'pre-wrap' }}>
+                    {config.about_content || config.about_profile_content}
+                  </div>
+                </div>
+              )}
+
+              <div className="narrative-section">
+                <h3 className="narrative-title">技术栈与架构</h3>
+                <div className="tech-stack-pills">
+                  <span className="tech-pill">Flask 3.x</span>
+                  <span className="tech-pill">SQLAlchemy</span>
+                  <span className="tech-pill">MySQL 8.x</span>
+                  <span className="tech-pill">React 19</span>
+                  <span className="tech-pill">TypeScript 5</span>
+                  <span className="tech-pill">Vite 8</span>
+                  <span className="tech-pill">PrismJS</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

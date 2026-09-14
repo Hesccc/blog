@@ -1,125 +1,110 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { Post } from '../utils/api';
+import { IconCalendar, IconEye, IconClock } from './Icons';
+import { getDeterministicEmoji } from '../utils/emoji';
+import { cleanMarkdownSummary } from '../utils/text';
 
 interface PostCardProps {
   post: Post;
 }
 
-// A palette of gradients for thumbnail backgrounds
-const GRADIENTS = [
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-  'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)',
-  'linear-gradient(135deg, #2d8ddc 0%, #23a6d5 100%)',
-];
-
-const THUMBNAIL_ICONS = ['📝', '🚀', '💡', '🔧', '📡', '🛡️', '🐳', '📊'];
-
 export const PostCard: React.FC<PostCardProps> = ({ post }) => {
-  const gradientIndex = post.id % GRADIENTS.length;
-  const gradient = GRADIENTS[gradientIndex];
-  const icon = THUMBNAIL_ICONS[gradientIndex];
-
   const formattedDate = new Date(post.create_time).toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
 
-  const summary =
-    post.meta_description ||
-    (post.content && post.content.replace(/#{1,6} /g, '').replace(/[*`_[\]()>]/g, '').trim().substring(0, 120) + '...') ||
-    '';
+  // 优先展示 AI 生成的 summary 摘要字段，其次 fallback 到经过专业清洗的文本
+  const summary = cleanMarkdownSummary(post.summary || post.meta_description || post.content, 110);
 
   const wordCount = post.content ? Math.ceil(post.content.length / 2) : 0;
   const readMinutes = Math.max(1, Math.ceil(wordCount / 300));
+  const category = post.categories && post.categories.length > 0 ? post.categories[0] : null;
+
+  // 封面优先级：
+  // 1. 文章自带 thumbnail
+  // 2. 自动获取并缓存在服务端的确定性外部高质图 /api/posts/:id/cover
+  const coverUrl = (post.thumbnail && post.thumbnail.trim().length > 0)
+    ? post.thumbnail.trim()
+    : `/api/posts/${post.id}/cover`;
 
   return (
-    <Link to={`/posts/${post.id}`} className="post-card">
-      {/* Thumbnail */}
-      <div
-        className={`post-card-thumbnail ${post.thumbnail && post.thumbnail.trim().length > 0 ? 'with-image' : 'no-image'}`}
-        style={!(post.thumbnail && post.thumbnail.trim().length > 0) ? { background: gradient } : {}}
-      >
-        {post.thumbnail && post.thumbnail.trim().length > 0 ? (
+    <article className="post-card-item">
+      <Link to={`/posts/${post.id}`} className="post-card-link">
+        {/* Thumbnail with Deterministic Cache & Graceful Blueprint Fallback */}
+        <div className="post-card-cover-wrap">
           <img
-            src={post.thumbnail}
+            src={coverUrl}
             alt={post.title}
-            referrerPolicy="no-referrer"
-            style={{
-              height: '100%',
-              width: 'auto',
-              maxWidth: '300px',
-              objectFit: 'cover',
-              display: 'block',
-              borderRadius: 'var(--border-radius)',
-            }}
+            className="post-card-img"
+            loading="lazy"
             onError={(e) => {
+              // 若图片加载失败（如断网），降级为现代工程几何蓝图排版
               e.currentTarget.style.display = 'none';
               const parent = e.currentTarget.parentElement;
               if (parent) {
-                parent.classList.remove('with-image');
-                parent.classList.add('no-image');
-                parent.style.background = gradient;
-                const emojiSpan = parent.querySelector('.fallback-emoji-span') as HTMLElement;
-                if (emojiSpan) emojiSpan.style.display = 'block';
+                const fallback = parent.querySelector('.post-card-geometric-cover') as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
               }
             }}
           />
-        ) : null}
-        <span 
-          className="fallback-emoji-span" 
-          style={post.thumbnail && post.thumbnail.trim().length > 0 ? { display: 'none', fontSize: '3rem', userSelect: 'none' } : { fontSize: '3rem', userSelect: 'none' }}
-        >
-          {icon}
-        </span>
-      </div>
+          <div className="post-card-geometric-cover" style={{ display: 'none' }}>
+            <div className="geometric-grid" />
+            <div className="geometric-meta">
+              <span className="geometric-badge">{category ? category.name : 'ARTICLE'}</span>
+              <span className="geometric-num">#{String(post.id).padStart(3, '0')}</span>
+            </div>
+            <div className="geometric-initials">
+              {post.title ? post.title.slice(0, 2).toUpperCase() : 'PS'}
+            </div>
+          </div>
+        </div>
 
-      {/* Body */}
-      <div className="post-card-body">
-        {/* Title */}
-        <h2 className="post-card-title">{post.title}</h2>
-
-        {/* Tags (moved up under the title, clean plain style) */}
-        {post.tags && post.tags.length > 0 && (
-          <div className="post-card-tags-inline">
-            <span className="tags-inline-icon">🏷️</span>
-            {post.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag.id}
-                className="tag-link-simple"
-                style={{ color: tag.color || 'var(--color-primary)' }}
-              >
-                #{tag.name}
+        {/* Content Body */}
+        <div className="post-card-body">
+          {/* Categories & Tags Bar */}
+          <div className="post-card-meta-top">
+            {category && (
+              <span className="post-card-category-pill">
+                <span style={{ fontSize: '0.85rem' }}>{getDeterministicEmoji(category.name)}</span>
+                <span>{category.name}</span>
+              </span>
+            )}
+            {post.tags && post.tags.slice(0, 2).map((t) => (
+              <span key={t.id} className="post-card-tag-simple">
+                <span style={{ fontSize: '0.78rem', marginRight: 2 }}>{getDeterministicEmoji(t.name)}</span>
+                <span>{t.name}</span>
               </span>
             ))}
           </div>
-        )}
 
-        {/* Summary */}
-        {summary && <p className="post-card-summary">{summary}</p>}
+          {/* Title */}
+          <h2 className="post-card-title">{post.title}</h2>
 
-        {/* Bottom row: Date, Category and views */}
-        <div className="post-card-bottom">
-          <span className="post-card-bottom-item">📅 {formattedDate}</span>
-          {post.categories && post.categories.length > 0 && (
-            <span className="post-card-bottom-item">
-              📁 {post.categories[0].name}
+          {/* Summary */}
+          {summary && <p className="post-card-excerpt">{summary}</p>}
+
+          {/* Bottom Info Row */}
+          <div className="post-card-meta-bottom">
+            <span className="meta-item">
+              <IconCalendar size={13} />
+              <time dateTime={post.create_time}>{formattedDate}</time>
             </span>
-          )}
-          <span className="post-card-bottom-item">
-            👁️ {post.access_count}
-          </span>
-          <span className="post-card-bottom-item">
-            ⏱️ {readMinutes} 分钟
-          </span>
+            <span className="meta-divider">·</span>
+            <span className="meta-item">
+              <IconClock size={13} />
+              <span>{readMinutes} 分钟</span>
+            </span>
+            <span className="meta-divider">·</span>
+            <span className="meta-item">
+              <IconEye size={13} />
+              <span>{post.access_count || 0} 阅读</span>
+            </span>
+          </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </article>
   );
 };

@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { slugify } from '../utils/slugify';
 
 interface TocItem {
   id: string;
@@ -8,14 +9,6 @@ interface TocItem {
 
 interface TocProps {
   content: string;
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\u4e00-\u9fa5\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 function parseToc(markdown: string): TocItem[] {
@@ -28,12 +21,12 @@ function parseToc(markdown: string): TocItem[] {
     const level = match[1].length;
     const text = match[2].trim().replace(/\*\*(.+?)\*\*/g, '$1');
     let id = slugify(text);
-    
+
     // Handle duplicate IDs
     const count = ids.get(id) || 0;
     ids.set(id, count + 1);
     if (count > 0) id = `${id}-${count}`;
-    
+
     items.push({ id, text, level });
   }
   return items;
@@ -41,7 +34,7 @@ function parseToc(markdown: string): TocItem[] {
 
 export const Toc: React.FC<TocProps> = ({ content }) => {
   const [activeId, setActiveId] = useState('');
-  const tocItems = parseToc(content);
+  const tocItems = useMemo(() => parseToc(content), [content]);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
@@ -67,13 +60,12 @@ export const Toc: React.FC<TocProps> = ({ content }) => {
     });
 
     return () => observerRef.current?.disconnect();
-  }, [content]);
+  }, [tocItems]);
 
   if (tocItems.length === 0) return null;
 
   return (
     <div className="toc-widget">
-      <div className="toc-title">📋 文章目录</div>
       <ul className="toc-list">
         {tocItems.map((item) => (
           <li
