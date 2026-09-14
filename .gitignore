@@ -41,6 +41,12 @@ apps/__pycache__
 *.sqlite
 *.sqlite3
 
+# --- Logs / Runtime Artifacts ---
+*.log
+apps/logs/
+temp/
+uploads/
+
 # --- Node.js / Vite Frontend (under /frontend) ---
 frontend/node_modules/
 frontend/dist/
