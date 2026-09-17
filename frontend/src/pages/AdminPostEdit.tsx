@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Category, Tag } from '../utils/api';
 import { AdminLayout } from '../components/AdminLayout';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { OssImageSelectModal } from '../components/OssImageSelectModal';
 import { IconArrowLeft } from '../components/Icons';
 import { getDeterministicEmoji } from '../utils/emoji';
 
@@ -22,9 +23,15 @@ export const AdminPostEdit: React.FC = () => {
 
   const [editorTab, setEditorTab] = useState<'split' | 'edit' | 'preview'>('split');
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [showOssPicker, setShowOssPicker] = useState(false);
   const [uploadingContentImg, setUploadingContentImg] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const contentImgInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 草稿箱与自动保存状态 ──
+  const [autoSaveStatus, setAutoSaveStatus] = useState<string>('');
+  const [hasDraft, setHasDraft] = useState(false);
+  const draftKey = `post_draft_${id || 'new'}`;
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -45,6 +52,21 @@ export const AdminPostEdit: React.FC = () => {
     category: { id: number; name: string; slug: string } | null;
     tags: Array<{ id: number; name: string; slug: string }>;
   } | null>(null);
+
+  // 检查本地暂存草稿
+  const checkLocalDraft = useCallback((origTitle: string, origContent: string) => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.title !== origTitle || parsed.content !== origContent)) {
+          setHasDraft(true);
+        }
+      }
+    } catch {
+      // 忽略解析异常
+    }
+  }, [draftKey]);
 
   const fetchBaseData = () => {
     api.getCategories().then(setCategories).catch(console.error);
@@ -70,13 +92,76 @@ export const AdminPostEdit: React.FC = () => {
             setSelectedTagIds(post.tags.map(t => t.id));
           }
           setFetching(false);
+          checkLocalDraft(post.title, post.content || '');
         })
         .catch(err => {
           setError(err.message || '加载文章数据失败');
           setFetching(false);
         });
+    } else {
+      checkLocalDraft('', '');
     }
-  }, [id, isEditMode]);
+  }, [id, isEditMode, checkLocalDraft]);
+
+  // 使用 ref 实时同步表单最新值，彻底解耦定时器与频繁打字渲染
+  const formDataRef = useRef({ title, content, status, categoryId, selectedTagIds, thumbnail, summary });
+  useEffect(() => {
+    formDataRef.current = { title, content, status, categoryId, selectedTagIds, thumbnail, summary };
+  }, [title, content, status, categoryId, selectedTagIds, thumbnail, summary]);
+
+  // 定时自动保存到草稿箱 (每 25 秒稳定触发，打字不重置定时器)
+  useEffect(() => {
+    if (fetching) return;
+    const timer = setInterval(() => {
+      const d = formDataRef.current;
+      if (d.title.trim() || d.content.trim()) {
+        try {
+          const savedAt = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const draftData = {
+            ...d,
+            savedAt,
+          };
+          localStorage.setItem(draftKey, JSON.stringify(draftData));
+          setAutoSaveStatus(`草稿于 ${savedAt} 自动暂存`);
+        } catch (storageErr) {
+          // 防御 QuotaExceededError 存储配额超限
+          console.warn('localStorage 自动暂存草稿受阻 (可能超出浏览器存储配额):', storageErr);
+          setAutoSaveStatus('自动保存受限 (存储空间满)');
+        }
+      }
+    }, 25000);
+
+    return () => clearInterval(timer);
+  }, [fetching, draftKey]);
+
+  // 恢复草稿（增加严格类型校验）
+  const handleRestoreDraft = () => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (typeof d.title === 'string') setTitle(d.title);
+        if (typeof d.content === 'string') setContent(d.content);
+        if (typeof d.status === 'number') setStatus(d.status);
+        if (typeof d.categoryId === 'number' || d.categoryId === '') setCategoryId(d.categoryId);
+        if (Array.isArray(d.selectedTagIds)) {
+          setSelectedTagIds(d.selectedTagIds.filter((tid: unknown): tid is number => typeof tid === 'number'));
+        }
+        if (typeof d.thumbnail === 'string') setThumbnail(d.thumbnail);
+        if (typeof d.summary === 'string') setSummary(d.summary);
+        setHasDraft(false);
+        setAutoSaveStatus(`已成功载入暂存草稿 (${d.savedAt || ''})`);
+      }
+    } catch {
+      setError('解析本地草稿异常，草稿数据可能已损坏');
+    }
+  };
+
+  // 放弃草稿
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(draftKey);
+    setHasDraft(false);
+  };
 
   const handleTagToggle = (tagId: number) => {
     if (selectedTagIds.includes(tagId)) {
@@ -272,6 +357,9 @@ export const AdminPostEdit: React.FC = () => {
         navigate(`/admin/posts/edit/${created.id}`);
         setSuccessMsg('文章已成功创建！');
       }
+      localStorage.removeItem(draftKey);
+      setHasDraft(false);
+      setAutoSaveStatus('内容已成功同步至服务器');
       setLoading(false);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: unknown) {
@@ -312,6 +400,7 @@ export const AdminPostEdit: React.FC = () => {
                 <span>·</span>
                 <span>约 {readMinutes} 分钟</span>
                 {isEditMode && <span>· ID: #{id}</span>}
+                {autoSaveStatus && <span style={{ color: 'var(--admin-text-3)', marginLeft: '0.5rem' }}>· {autoSaveStatus}</span>}
               </div>
             </div>
           </div>
@@ -348,6 +437,33 @@ export const AdminPostEdit: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {hasDraft && (
+          <div className="admin-alert" style={{ background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.3)', color: 'var(--admin-text-1)', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>📝</span>
+              <span>检测到本地存在未保存的自动暂存草稿，是否恢复？</span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="admin-btn admin-btn-primary admin-btn-sm"
+                onClick={handleRestoreDraft}
+                style={{ padding: '0.2rem 0.65rem' }}
+              >
+                恢复草稿
+              </button>
+              <button
+                type="button"
+                className="admin-btn admin-btn-ghost admin-btn-sm"
+                onClick={handleDiscardDraft}
+                style={{ padding: '0.2rem 0.65rem' }}
+              >
+                放弃
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="admin-alert admin-alert-error" style={{ marginBottom: '1.25rem' }}>
@@ -671,22 +787,33 @@ export const AdminPostEdit: React.FC = () => {
             <div className="admin-card editor-meta-card">
               <div className="editor-card-heading-row">
                 <div className="editor-card-heading">封面配图</div>
-                <input
-                  type="file"
-                  ref={coverInputRef}
-                  style={{ display: 'none' }}
-                  accept="image/*"
-                  onChange={handleCoverUpload}
-                />
-                <button
-                  type="button"
-                  className="admin-btn admin-btn-ghost admin-btn-sm"
-                  onClick={() => coverInputRef.current?.click()}
-                  disabled={uploadingCover}
-                  style={{ padding: '0.15rem 0.4rem', fontSize: '0.74rem' }}
-                >
-                  {uploadingCover ? '上传中...' : '上传本地图'}
-                </button>
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <input
+                    type="file"
+                    ref={coverInputRef}
+                    style={{ display: 'none' }}
+                    accept="image/*"
+                    onChange={handleCoverUpload}
+                  />
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary admin-btn-sm"
+                    onClick={() => setShowOssPicker(true)}
+                    style={{ padding: '0.15rem 0.5rem', fontSize: '0.74rem' }}
+                    title="从当前 OSS 图片库中选择已有配图"
+                  >
+                    从图片库选择
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost admin-btn-sm"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={uploadingCover}
+                    style={{ padding: '0.15rem 0.4rem', fontSize: '0.74rem' }}
+                  >
+                    {uploadingCover ? '上传中...' : '上传本地图'}
+                  </button>
+                </div>
               </div>
 
               <div className="editor-card-body">
@@ -695,7 +822,7 @@ export const AdminPostEdit: React.FC = () => {
                     type="text"
                     value={thumbnail}
                     onChange={e => setThumbnail(e.target.value)}
-                    placeholder="输入 URL 或点击右上角上传"
+                    placeholder="输入 URL、从图片库选择或点击上传"
                     className="admin-form-control"
                     style={{ fontSize: '0.82rem' }}
                   />
@@ -719,9 +846,14 @@ export const AdminPostEdit: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className="editor-cover-empty-placeholder">
+                  <div
+                    className="editor-cover-empty-placeholder"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setShowOssPicker(true)}
+                    title="点击打开 OSS 图片库选择封面"
+                  >
                     <span>未配置独立封面</span>
-                    <span style={{ fontSize: '0.72rem', opacity: 0.7 }}>（前台将根据文章 ID 自动匹配确定性背景图）</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-primary)' }}>（点击从 OSS 图片库挑选配图）</span>
                   </div>
                 )}
               </div>
@@ -758,6 +890,15 @@ export const AdminPostEdit: React.FC = () => {
           </aside>
         </div>
       </form>
+
+      {/* OSS 图片库弹出选择器 Modal */}
+      {showOssPicker && (
+        <OssImageSelectModal
+          currentUrl={thumbnail}
+          onSelect={url => setThumbnail(url)}
+          onClose={() => setShowOssPicker(false)}
+        />
+      )}
     </AdminLayout>
   );
 };

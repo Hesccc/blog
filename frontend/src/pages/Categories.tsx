@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Category, Post } from '../utils/api';
 import { Layout } from '../components/Layout';
+import { ScrollNav } from '../components/ScrollNav';
 import { IconFolder, IconChevronRight, IconBookOpen } from '../components/Icons';
 import { PageHeroBanner } from '../components/PageHeroBanner';
 import { getDeterministicEmoji } from '../utils/emoji';
@@ -64,6 +65,9 @@ export const Categories: React.FC = () => {
 
   return (
     <Layout hero={hero}>
+      {/* 右侧上/下滚动导航按钮（滚动后显示） */}
+      <ScrollNav />
+
       <div className="page-shell">
         {loading ? (
           <div className="loading-state">

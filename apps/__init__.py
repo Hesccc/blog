@@ -7,6 +7,9 @@ from .api.posts import api_posts
 from .api.config import api_config
 from .api.oss import api_oss
 from .api.ai import api_ai
+from .api.backup import api_backup
+from .api.open import api_open
+from .api.halo import api_halo
 import datetime
 
 
@@ -16,6 +19,7 @@ def create_apps():
     # 启用跨域资源共享 (CORS) - 允许来源通过环境变量 CORS_ORIGINS 配置（默认 *，生产环境建议收紧）
     CORS(app, resources={
         r"/api/*": {"origins": config.CORS_ORIGINS},
+        r"/apis/*": {"origins": config.CORS_ORIGINS},
         r"/uploads/*": {"origins": config.CORS_ORIGINS},
         r"/temp/*": {"origins": config.CORS_ORIGINS},
     })
@@ -26,6 +30,9 @@ def create_apps():
     app.register_blueprint(blueprint=api_config)
     app.register_blueprint(blueprint=api_oss)
     app.register_blueprint(blueprint=api_ai)
+    app.register_blueprint(blueprint=api_backup)
+    app.register_blueprint(blueprint=api_open)
+    app.register_blueprint(blueprint=api_halo)
 
     # 静态上传文件访问
     @app.route('/uploads/<path:filename>')

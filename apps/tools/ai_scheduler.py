@@ -186,15 +186,10 @@ def _process_single_post_in_thread(app, post_id: int):
                     cat_names = [c.name for c in existing_categories]
                     tag_names = [t.name for t in existing_tags]
 
-                    system_prompt = (
-                        "你是一个专业的中文技术博客编辑助手。请阅读文章标题与正文，推荐最匹配的【1个分类】和【2~5个标签】。\n"
-                        "现有候选分类库: " + json.dumps(cat_names, ensure_ascii=False) + "\n"
-                        "现有候选标签库: " + json.dumps(tag_names, ensure_ascii=False) + "\n"
-                        "规则：\n"
-                        "1. 分类务必精准（1 个字符串，优先匹配已有库，如不符合可新建 1 个通用词）；\n"
-                        "2. 标签返回 2~5 个数组；\n"
-                        "3. 输出合法 JSON: {\"category\": \"分类名\", \"tags\": [\"标签1\", \"标签2\"]}"
-                    )
+                    from apps.tools.ai_prompts import get_prompt_template
+                    tpl = get_prompt_template('prompt_taxonomy')
+                    system_prompt = tpl.replace('{category_list}', json.dumps(cat_names, ensure_ascii=False))\
+                                       .replace('{tag_list}', json.dumps(tag_names, ensure_ascii=False))
                     user_prompt = f"文章标题：{title}\n\n正文节选：\n{content[:4000]}"
                     reply = llm_chat_completion(system_prompt, user_prompt, temperature=0.3, json_mode=True)
                     res = json.loads(reply)
@@ -256,10 +251,8 @@ def _process_single_post_in_thread(app, post_id: int):
             # 4. 执行自动摘要补充 (200字以内)
             if need_summary:
                 try:
-                    summary_sys = (
-                        "你是一个技术专栏总编辑。请提炼一段简练专业的文章摘要 (Summary)。\n"
-                        "严格要求：字数必须在 80~200 字以内，通顺直接，直接交代背景、核心技术要点及结论，严禁废话，直接输出纯文本。"
-                    )
+                    from apps.tools.ai_prompts import get_prompt_template
+                    summary_sys = get_prompt_template('prompt_summary')
                     sum_res = llm_chat_completion(summary_sys, f"标题：{title}\n\n正文：\n{content[:6000]}", temperature=0.3).strip()
                     if len(sum_res) > 200:
                         sum_res = sum_res[:197] + '...'
@@ -281,6 +274,7 @@ def _process_single_post_in_thread(app, post_id: int):
             add_scheduler_log('ERROR', f"线程处理文章 ID {post_id} 异常: {ex}")
             return False
         finally:
+            db.session.remove()  # 显式清理工作线程复用时的 Session 状态，防脏上下文污染
             with _SCHEDULER_LOCK:
                 _IN_FLIGHT_POST_IDS.discard(post_id)
 

@@ -246,8 +246,22 @@ export const AdminOssImages: React.FC = () => {
   const [batchDeleting, setBatchDeleting] = useState(false);
 
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [selectedType, setSelectedType] = useState<string>(''); // '' | 'cached' | 'local' | 'external'
 
-  const PER_PAGE = 24;
+  // 动态计算铺满当前屏幕每页所需的图片数量
+  const calculateDefaultPerPage = useCallback(() => {
+    if (typeof window === 'undefined') return 24;
+    // 侧边栏宽度约为 240px，内容内边距及间隙，卡片宽度预估 200px+16px gap
+    const mainWidth = Math.max(320, window.innerWidth - 280);
+    const cols = Math.max(2, Math.floor((mainWidth + 16) / (200 + 16)));
+    // 头部、工具条、面包屑及分页高度占用约为 280px，每张卡片高度约 240px+16px gap
+    const mainHeight = Math.max(400, window.innerHeight - 280);
+    const rows = Math.max(2, Math.ceil(mainHeight / (240 + 16)));
+    // 默认铺满整屏所需数量，兜底保底 24
+    return Math.max(24, cols * rows);
+  }, []);
+
+  const [perPage, setPerPage] = useState<number>(calculateDefaultPerPage);
 
   const showMsg = useCallback((text: string, type: 'success' | 'error' = 'success') => {
     setMsg(text);
@@ -255,10 +269,10 @@ export const AdminOssImages: React.FC = () => {
     setTimeout(() => setMsg(''), 4000);
   }, []);
 
-  const loadImages = useCallback((p = 1, q = '') => {
+  const loadImages = useCallback((p = 1, q = '', typeFilter = selectedType, customPerPage = perPage) => {
     setLoading(true);
     setSelectedIds(new Set());
-    api.adminOssGetImages({ page: p, per_page: PER_PAGE, search: q })
+    api.adminOssGetImages({ page: p, per_page: customPerPage, search: q, type: typeFilter || undefined })
       .then(res => {
         setImages(res.images);
         setTotal(res.total);
@@ -270,14 +284,31 @@ export const AdminOssImages: React.FC = () => {
         showMsg(err.message || '获取图片库失败', 'error');
         setLoading(false);
       });
-  }, [showMsg]);
+  }, [perPage, selectedType, showMsg]);
 
-  useEffect(() => { loadImages(1, ''); }, [loadImages]);
+  useEffect(() => {
+    loadImages(1, '', selectedType, perPage);
+  }, [loadImages, selectedType, perPage]);
+
+  // 监听窗口尺寸变化，如果用户调整了窗口大小，可自动保持铺满
+  useEffect(() => {
+    const handleResize = () => {
+      const needed = calculateDefaultPerPage();
+      setPerPage(prev => (prev < needed ? needed : prev));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [calculateDefaultPerPage]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
-    loadImages(1, searchInput);
+    loadImages(1, searchInput, selectedType);
+  };
+
+  const handleTypeChange = (newType: string) => {
+    setSelectedType(newType);
+    // 状态更新后交由依赖 selectedType 的 useEffect 单一驱动，避免同一操作发送双重网络请求
   };
 
   // ── 添加 URL ──
@@ -531,12 +562,64 @@ export const AdminOssImages: React.FC = () => {
               <button
                 type="button"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', padding: 0, lineHeight: 1 }}
-                onClick={() => { setSearchInput(''); setSearch(''); loadImages(1, ''); }}
+                onClick={() => { setSearchInput(''); setSearch(''); loadImages(1, '', selectedType); }}
               >✕</button>
             )}
           </div>
           <button type="submit" className="admin-btn admin-btn-secondary admin-btn-sm">搜索</button>
         </form>
+
+        {/* 图片分类筛选框 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+          <select
+            value={selectedType}
+            onChange={e => handleTypeChange(e.target.value)}
+            style={{
+              padding: '0.4rem 0.8rem',
+              borderRadius: '6px',
+              border: '1px solid var(--admin-card-border)',
+              backgroundColor: 'var(--admin-card-bg)',
+              color: 'var(--admin-text-1)',
+              fontSize: '0.85rem',
+              outline: 'none',
+              cursor: 'pointer',
+              fontWeight: 500,
+            }}
+          >
+            <option value="">全部图片分类</option>
+            <option value="cached">系统缓存图片</option>
+            <option value="local">本地图片上传</option>
+            <option value="external">外部 OSS 图片</option>
+          </select>
+        </div>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--admin-text-3)' }}>
+          <span>每页显示:</span>
+          <select
+            value={perPage}
+            onChange={e => {
+              const val = parseInt(e.target.value, 10);
+              setPerPage(val);
+              loadImages(1, search, selectedType, val);
+            }}
+            style={{
+              padding: '0.25rem 0.6rem',
+              borderRadius: '6px',
+              border: '1px solid var(--admin-card-border)',
+              backgroundColor: 'var(--admin-card-bg)',
+              color: 'var(--admin-text-1)',
+              fontSize: '0.82rem',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value={calculateDefaultPerPage()}>{`铺满整屏 (${calculateDefaultPerPage()} 张)`}</option>
+            <option value={24}>24 张</option>
+            <option value={48}>48 张</option>
+            <option value={60}>60 张</option>
+            <option value={100}>100 张</option>
+          </select>
+        </div>
 
         {selectedIds.size > 0 && (
           <button
@@ -553,7 +636,10 @@ export const AdminOssImages: React.FC = () => {
       {!loading && (
         <div className="oss-stats-bar">
           <span>共 <strong>{total}</strong> 张图片</span>
-          {search && <span>· 搜索关键词：<strong>\"{search}\"</strong></span>}
+          {selectedType === 'cached' && <span>· 当前分类：<strong>系统缓存图片</strong></span>}
+          {selectedType === 'local' && <span>· 当前分类：<strong>本地图片上传</strong></span>}
+          {selectedType === 'external' && <span>· 当前分类：<strong>外部 OSS 图片</strong></span>}
+          {search && <span>· 搜索关键词：<strong>"{search}"</strong></span>}
           {selectedIds.size > 0 && <span>· 已选 <strong>{selectedIds.size}</strong> 张</span>}
         </div>
       )}

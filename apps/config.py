@@ -15,17 +15,21 @@ if SECRET_KEY == 'default-dev-secret-key-please-change-in-env':
 # CORS 允许的来源（逗号分隔），生产环境建议配置为具体前端域名
 CORS_ORIGINS = [o.strip() for o in os.getenv('CORS_ORIGINS', '*').split(',') if o.strip()]
 
-# 数据库配置
+# 数据库配置 (支持 MySQL, MariaDB, PostgreSQL 等)
+DB_TYPE = os.getenv('DB_TYPE', 'mysql').lower().strip()
 HOSTNAME = os.getenv('DB_HOST', '127.0.0.1')
-PORT = os.getenv('DB_PORT', '3306')
+PORT = os.getenv('DB_PORT', '3306' if DB_TYPE not in ('postgres', 'postgresql') else '5432')
 DATABASE = os.getenv('DB_NAME', 'blog')
-USERNAME = os.getenv('DB_USER', 'root')
+USERNAME = os.getenv('DB_USER', 'root' if DB_TYPE not in ('postgres', 'postgresql') else 'postgres')
 PASSWORD = os.getenv('DB_PASSWORD', '')
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
     DB_URI = DATABASE_URL
+elif DB_TYPE in ('postgres', 'postgresql', 'pgsql'):
+    DB_URI = f'postgresql+psycopg2://{USERNAME}:{PASSWORD}@{HOSTNAME}:{PORT}/{DATABASE}'
 else:
+    # 默认 MySQL / MariaDB (驱动 pymysql)
     DB_URI = f'mysql+pymysql://{USERNAME}:{PASSWORD}@{HOSTNAME}:{PORT}/{DATABASE}?charset=utf8mb4'
 
 SQLALCHEMY_DATABASE_URI = DB_URI

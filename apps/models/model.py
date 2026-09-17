@@ -35,17 +35,18 @@ class History(db.Model):
 class Posts(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
-    title = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
     author = db.Column(db.String(100), nullable=True)
     content = db.Column(db.Text, nullable=True)
-    access_count = db.Column(db.Integer, nullable=True)
+    access_count = db.Column(db.Integer, default=0, nullable=True)
     thumbnail = db.Column(db.String(1024), nullable=True)
-    status = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.Integer, default=0, nullable=True)
     update_time = db.Column(db.DateTime, nullable=True)
     create_time = db.Column(db.DateTime, nullable=True)
-    meta_description = db.Column(db.String(1023), nullable=True)
-    summary = db.Column(db.String(600), nullable=True)  # AI 生成的文章内容摘要 (200字以内)
-    deleted = db.Column(db.Integer)
+    meta_description = db.Column(db.String(1024), nullable=True)
+    summary = db.Column(db.String(1024), nullable=True)  # AI 生成的文章内容摘要 (200字以内)
+    source_id = db.Column(db.String(128), index=True, nullable=True)  # 外部系统来源唯一标识 (如思源文档 ID)
+    deleted = db.Column(db.Integer, default=0, nullable=False)
 
 
 class Categories(db.Model):

@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------
+  # 1. 数据库服务 (默认使用轻量稳定的 MariaDB，亦可无缝切换 mysql:8.0 或 postgres:16-alpine)
+  # ----------------------------------------------------
+  db:
+    # 如需使用极轻量 MariaDB (约 100MB 内存)：
+    image: mariadb:10.11
+    # 如需使用官方 MySQL 8.0：
+    # image: mysql:8.0
+    # 如需使用极轻量 PostgreSQL (Alpine 镜像仅约 80MB)：
+    # image: postgres:16-alpine
+    container_name: blog-db
+    restart: unless-stopped
+    environment:
+      # MySQL / MariaDB 变量
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${DB_NAME:-blog}
+      MYSQL_USER: ${DB_USER:-blog}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-blog_password}
+      # PostgreSQL 兼容环境变量
+      POSTGRES_DB: ${DB_NAME:-blog}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-blog_password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      # 如果使用 PostgreSQL，请将挂载路径切换为:
+      # - db_data:/var/lib/postgresql/data
+    networks:
+      - blog-network
+
+  # ----------------------------------------------------
+  # 2. 后端 API 服务 (Flask + Gunicorn)
+  # ----------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: blog-backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - FLASK_ENV=production
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5000
+    volumes:
+      # 持久化挂载上传的文件和备份
+      - ./uploads:/app/uploads
+      - ./temp:/app/temp
+    networks:
+      - blog-network
+
+  # ----------------------------------------------------
+  # 3. 前端与网关代理 (Nginx + React SPA)
+  # ----------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: blog-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # 外部访问的主端口 (默认映射宿主机 80 端口，可通过 .env 覆盖)
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - blog-network
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  blog-network:
+    driver: bridge

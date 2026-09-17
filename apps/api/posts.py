@@ -4,8 +4,10 @@ import collections
 import zipfile
 import io
 import os
+from sqlalchemy import func
 from apps.exts import db
 from apps.models.model import Posts, Categories, Tags, PostTags, PostCategories
+from apps.tools.tools import escape_like
 from .middleware import token_required
 
 api_posts = Blueprint('api_posts', __name__)
@@ -114,10 +116,11 @@ def get_posts():
                      .filter(Tags.slug == tag_slug, PostTags.deleted == 0, Tags.deleted == 0)
                      
     if search:
-        query = query.filter(Posts.title.like(f'%{search}%') | Posts.content.like(f'%{search}%'))
+        safe_search = escape_like(search)
+        query = query.filter(Posts.title.like(f'%{safe_search}%') | Posts.content.like(f'%{safe_search}%'))
         
-    # Order by create_time descending
-    query = query.order_by(Posts.create_time.desc())
+    # Order by create_time descending, and secondary order by id descending to ensure stable pagination
+    query = query.order_by(Posts.create_time.desc(), Posts.id.desc())
     
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
@@ -134,11 +137,96 @@ def get_posts():
 def get_post_detail(post_id):
     post = Posts.query.filter(Posts.id == post_id, Posts.deleted == 0, Posts.status == 0).first_or_404()
     
-    # Increment access count
-    post.access_count = (post.access_count or 0) + 1
+    # 原子自增阅读量，杜绝高并发并发丢失更新 (Lost Update)
+    Posts.query.filter(Posts.id == post.id).update({
+        Posts.access_count: func.coalesce(Posts.access_count, 0) + 1
+    })
     db.session.commit()
+    # 内存对象同步自增
+    post.access_count = (post.access_count or 0) + 1
     
-    return jsonify(serialize_post(post))
+    data = serialize_post(post)
+
+    # 1. 查找上一篇与下一篇 (按发布时间与主键确定性排序)
+    # prev: 比当前文章更早（时间更小或同时间id更小）
+    prev_post = Posts.query.filter(
+        Posts.deleted == 0,
+        Posts.status == 0,
+        (Posts.create_time < post.create_time) | 
+        ((Posts.create_time == post.create_time) & (Posts.id < post.id))
+    ).order_by(Posts.create_time.desc(), Posts.id.desc()).first()
+
+    # next: 比当前文章更新（时间更大或同时间id更大）
+    next_post = Posts.query.filter(
+        Posts.deleted == 0,
+        Posts.status == 0,
+        (Posts.create_time > post.create_time) | 
+        ((Posts.create_time == post.create_time) & (Posts.id > post.id))
+    ).order_by(Posts.create_time.asc(), Posts.id.asc()).first()
+
+    data['prev_post'] = {
+        'id': prev_post.id,
+        'title': prev_post.title,
+        'thumbnail': prev_post.thumbnail
+    } if prev_post else None
+
+    data['next_post'] = {
+        'id': next_post.id,
+        'title': next_post.title,
+        'thumbnail': next_post.thumbnail
+    } if next_post else None
+
+    # 2. 相关推荐 (优先同分类，其次同标签，排除自身，最多 4 篇)
+    category_ids = [c['id'] for c in data.get('categories', [])]
+    tag_ids = [t['id'] for t in data.get('tags', [])]
+    
+    related_posts_map = {}
+
+    # 同分类推荐
+    if category_ids:
+        matched_by_cat = db.session.query(Posts).join(
+            PostCategories, Posts.id == PostCategories.post_id
+        ).filter(
+            PostCategories.category_id.in_(category_ids),
+            PostCategories.deleted == 0,
+            Posts.id != post.id,
+            Posts.deleted == 0,
+            Posts.status == 0
+        ).order_by(Posts.create_time.desc(), Posts.id.desc()).limit(6).all()
+        for p in matched_by_cat:
+            related_posts_map[p.id] = p
+
+    # 同标签推荐
+    if len(related_posts_map) < 4 and tag_ids:
+        matched_by_tag = db.session.query(Posts).join(
+            PostTags, Posts.id == PostTags.post_id
+        ).filter(
+            PostTags.tag_id.in_(tag_ids),
+            PostTags.deleted == 0,
+            Posts.id != post.id,
+            Posts.deleted == 0,
+            Posts.status == 0
+        ).order_by(Posts.create_time.desc(), Posts.id.desc()).limit(6).all()
+        for p in matched_by_tag:
+            related_posts_map[p.id] = p
+
+    # 若仍不足 4 篇，兜底补充最新发布的其他文章
+    if len(related_posts_map) < 4:
+        recent_posts = Posts.query.filter(
+            Posts.id != post.id,
+            Posts.deleted == 0,
+            Posts.status == 0
+        ).order_by(Posts.create_time.desc(), Posts.id.desc()).limit(6).all()
+        for p in recent_posts:
+            if p.id not in related_posts_map:
+                related_posts_map[p.id] = p
+            if len(related_posts_map) >= 4:
+                break
+
+    related_list = list(related_posts_map.values())[:4]
+    data['related_posts'] = serialize_posts(related_list)
+    
+    return jsonify(data)
 
 @api_posts.route('/api/categories', methods=['GET'])
 def get_categories():
@@ -202,7 +290,8 @@ def manage_get_posts():
                      .filter(PostCategories.category_id == category_id, PostCategories.deleted == 0)
 
     if search:
-        query = query.filter(Posts.title.like(f'%{search}%'))
+        safe_search = escape_like(search)
+        query = query.filter(Posts.title.like(f'%{safe_search}%'))
 
     query = query.order_by(order_expr)
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)

@@ -3,12 +3,18 @@ import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Post } from '../utils/api';
 import { Layout } from '../components/Layout';
+import { ScrollNav } from '../components/ScrollNav';
 import { IconArchive, IconFolder } from '../components/Icons';
 import { PageHeroBanner } from '../components/PageHeroBanner';
 
+interface MonthGroup {
+  month: number;
+  posts: Post[];
+}
+
 interface YearGroup {
   year: number;
-  posts: Post[];
+  months: MonthGroup[];
 }
 
 export const Archives: React.FC = () => {
@@ -25,18 +31,28 @@ export const Archives: React.FC = () => {
         const postsList: Post[] = data.posts;
         setTotalCount(postsList.length);
 
-        const map = new Map<number, Post[]>();
+        const yearMap = new Map<number, Map<number, Post[]>>();
         postsList.forEach(post => {
           const date = new Date(post.create_time);
           const year = date.getFullYear();
-          if (!map.has(year)) {
-            map.set(year, []);
+          const month = date.getMonth() + 1;
+          if (!yearMap.has(year)) {
+            yearMap.set(year, new Map());
           }
-          map.get(year)!.push(post);
+          const monthMap = yearMap.get(year)!;
+          if (!monthMap.has(month)) {
+            monthMap.set(month, []);
+          }
+          monthMap.get(month)!.push(post);
         });
 
-        const sortedGroups: YearGroup[] = Array.from(map.entries())
-          .map(([year, posts]) => ({ year, posts }))
+        const sortedGroups: YearGroup[] = Array.from(yearMap.entries())
+          .map(([year, monthMap]) => ({
+            year,
+            months: Array.from(monthMap.entries())
+              .map(([month, posts]) => ({ month, posts }))
+              .sort((a, b) => b.month - a.month),
+          }))
           .sort((a, b) => b.year - a.year);
 
         setGroups(sortedGroups);
@@ -59,6 +75,9 @@ export const Archives: React.FC = () => {
 
   return (
     <Layout hero={hero}>
+      {/* 右侧上/下滚动导航按钮（滚动后显示） */}
+      <ScrollNav />
+
       <div className="page-shell">
         {loading ? (
           <div className="loading-state">
@@ -78,27 +97,39 @@ export const Archives: React.FC = () => {
               <section key={group.year} className="timeline-year-group">
                 <div className="timeline-year-header">
                   <span className="year-pill">{group.year}</span>
-                  <span className="year-count">{group.posts.length} 篇</span>
+                  <span className="year-count">
+                    {group.months.reduce((sum, m) => sum + m.posts.length, 0)} 篇
+                  </span>
                 </div>
-                <div className="timeline-items">
-                  {group.posts.map(post => {
-                    const d = new Date(post.create_time);
-                    const monthDay = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    return (
-                      <article key={post.id} className="timeline-item">
-                        <span className="timeline-date">{monthDay}</span>
-                        <Link to={`/posts/${post.id}`} className="timeline-title-link">
-                          {post.title}
-                        </Link>
-                        {post.categories && post.categories.length > 0 && (
-                          <span className="timeline-cat-badge">
-                            <IconFolder size={11} />
-                            {post.categories[0].name}
-                          </span>
-                        )}
-                      </article>
-                    );
-                  })}
+                <div className="timeline-year-body">
+                  {group.months.map(monthGroup => (
+                    <div key={monthGroup.month} className="timeline-month-group">
+                      <div className="timeline-month-header">
+                        <span className="month-pill">{String(monthGroup.month).padStart(2, '0')} 月</span>
+                        <span className="month-count">{monthGroup.posts.length} 篇</span>
+                      </div>
+                      <div className="timeline-items">
+                        {monthGroup.posts.map(post => {
+                          const d = new Date(post.create_time);
+                          const day = `${String(d.getDate()).padStart(2, '0')} 日`;
+                          return (
+                            <article key={post.id} className="timeline-item">
+                              <span className="timeline-date">{day}</span>
+                              <Link to={`/posts/${post.id}`} className="timeline-title-link">
+                                {post.title}
+                              </Link>
+                              {post.categories && post.categories.length > 0 && (
+                                <span className="timeline-cat-badge">
+                                  <IconFolder size={11} />
+                                  {post.categories[0].name}
+                                </span>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             ))}

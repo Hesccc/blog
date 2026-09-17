@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
+import secrets
 from apps.exts import db
 from apps.models.model import Config, Posts, Categories, Tags
 from apps.tools.tools import env
+from apps.api.open import get_or_create_open_token, CONFIG_KEY_OPEN_TOKEN
 from .middleware import token_required
 
 api_config = Blueprint('api_config', __name__)
@@ -9,8 +11,29 @@ api_config = Blueprint('api_config', __name__)
 @api_config.route('/api/config', methods=['GET'])
 def get_config():
     configs = Config.query.all()
-    config_dict = {c.name: c.value for c in configs}
+    # 敏感配置项过滤，不暴露给前台匿名用户
+    sensitive_keys = {'open_api_token', 'ai_api_key'}
+    config_dict = {c.name: c.value for c in configs if c.name not in sensitive_keys}
     return jsonify(config_dict)
+
+@api_config.route('/api/manage/open-token', methods=['GET', 'POST'])
+@token_required
+def manage_open_token():
+    """管理端获取或重置开放 API 密钥 Token。"""
+    if request.method == 'POST':
+        # 重置生成全新 Token
+        new_token = f"sk-open-{secrets.token_hex(16)}"
+        cfg = Config.query.filter_by(name=CONFIG_KEY_OPEN_TOKEN).first()
+        if cfg:
+            cfg.value = new_token
+        else:
+            cfg = Config(name=CONFIG_KEY_OPEN_TOKEN, value=new_token)
+            db.session.add(cfg)
+        db.session.commit()
+        return jsonify({'token': new_token, 'msg': '已成功重新生成开放 API 密钥！'})
+    
+    token = get_or_create_open_token()
+    return jsonify({'token': token})
 
 @api_config.route('/api/manage/config', methods=['PUT'])
 @token_required

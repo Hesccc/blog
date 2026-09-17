@@ -13,6 +13,7 @@ import { AdminCategories } from './pages/AdminCategories';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminPassword } from './pages/AdminPassword';
 import { AdminOssImages } from './pages/AdminOssImages';
+import { AdminBackups } from './pages/AdminBackups';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/password" element={<AdminPassword />} />
         <Route path="/admin/oss-images" element={<AdminOssImages />} />
+        <Route path="/admin/backups" element={<AdminBackups />} />
       </Routes>
     </Router>
   );

@@ -16,6 +16,18 @@ export interface Post {
   tags: { id: number; name: string; slug: string; color: string }[];
 }
 
+export interface PostNavInfo {
+  id: number;
+  title: string;
+  thumbnail: string | null;
+}
+
+export interface PostDetailData extends Post {
+  prev_post?: PostNavInfo | null;
+  next_post?: PostNavInfo | null;
+  related_posts?: Post[];
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -44,6 +56,21 @@ export interface SystemEnv {
   node_v: string;
   cpu_usage: number;
   mem_usage: number;
+}
+
+export interface BackupFileItem {
+  filename: string;
+  type: 'markdown' | 'oss' | 'database' | 'full';
+  size: number;
+  size_formatted: string;
+  created_at: string;
+  download_url: string;
+}
+
+export interface BackupListResult {
+  backups: BackupFileItem[];
+  count: number;
+  backup_dir: string;
 }
 
 export interface BlogStats {
@@ -84,6 +111,16 @@ export interface BlogStats {
     pending_summary_count: number;
     total_pending: number;
   };
+}
+
+export interface AiPromptItem {
+  key: string;
+  category: string;
+  title: string;
+  desc: string;
+  default_prompt: string;
+  current_prompt: string;
+  is_customized: boolean;
 }
 
 export interface OssImage {
@@ -135,6 +172,8 @@ async function apiFetch(path: string, options: RequestInit = {}) {
     if (!window.location.pathname.startsWith('/login') && window.location.pathname !== '/') {
       window.location.href = '/login';
     }
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.msg || '认证已失效，正在跳转登录...');
   }
 
   if (!response.ok) {
@@ -189,7 +228,7 @@ export const api = {
     return apiFetch(`/api/posts?${query.toString()}`);
   },
 
-  getPost: (id: number): Promise<Post> => {
+  getPost: (id: number): Promise<PostDetailData> => {
     return apiFetch(`/api/posts/${id}`);
   },
 
@@ -318,11 +357,12 @@ export const api = {
     return apiFetch('/api/oss/random');
   },
 
-  adminOssGetImages: (params: { page?: number; per_page?: number; search?: string } = {}): Promise<OssImageListResult> => {
+  adminOssGetImages: (params: { page?: number; per_page?: number; search?: string; type?: string } = {}): Promise<OssImageListResult> => {
     const query = new URLSearchParams();
     if (params.page) query.set('page', params.page.toString());
     if (params.per_page) query.set('per_page', params.per_page.toString());
     if (params.search) query.set('search', params.search);
+    if (params.type) query.set('type', params.type);
     return apiFetch(`/api/manage/oss/images?${query.toString()}`);
   },
 
@@ -478,5 +518,66 @@ export const api = {
     logs: Array<{ time: string; level: 'INFO' | 'SUCCESS' | 'WARN' | 'ERROR'; message: string }>;
   }> => {
     return apiFetch('/api/manage/ai/scheduler/logs');
+  },
+
+  // 备份中心 API
+  adminGetBackups: (): Promise<BackupListResult> => {
+    return apiFetch('/api/manage/backups');
+  },
+
+  adminDeleteBackup: (filename: string): Promise<{ msg: string }> => {
+    return apiFetch(`/api/manage/backups/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+  },
+
+  adminExportMarkdown: (): Promise<{ msg: string; filename: string; download_url: string }> => {
+    return apiFetch('/api/manage/backups/export/markdown', { method: 'POST' });
+  },
+
+  adminExportDatabase: (): Promise<{ msg: string; filename: string; download_url: string }> => {
+    return apiFetch('/api/manage/backups/export/db', { method: 'POST' });
+  },
+
+  adminExportOss: (): Promise<{ msg: string; filename: string; download_url: string }> => {
+    return apiFetch('/api/manage/backups/export/oss', { method: 'POST' });
+  },
+
+  adminExportFullSite: (): Promise<{ msg: string; filename: string; download_url: string }> => {
+    return apiFetch('/api/manage/backups/export/full', { method: 'POST' });
+  },
+
+  adminRestoreDatabase: (filename?: string, file?: File): Promise<{ msg: string; executed_count: number }> => {
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      return apiFetch('/api/manage/backups/restore/sql', {
+        method: 'POST',
+        body: formData,
+      });
+    }
+    return apiFetch('/api/manage/backups/restore/sql', {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    });
+  },
+
+  // AI 自定义提示词配置 API
+  aiGetPrompts: (): Promise<{ prompts: AiPromptItem[] }> => {
+    return apiFetch('/api/manage/ai/prompts');
+  },
+
+  aiUpdatePrompt: (key: string, value: string): Promise<{ msg: string; prompts: AiPromptItem[] }> => {
+    return apiFetch('/api/manage/ai/prompts', {
+      method: 'PUT',
+      body: JSON.stringify({ key, value }),
+    });
+  },
+
+  // 开放 API Token 管理
+  adminGetOpenToken: (): Promise<{ token: string }> => {
+    return apiFetch('/api/manage/open-token');
+  },
+
+  adminResetOpenToken: (): Promise<{ token: string; msg: string }> => {
+    return apiFetch('/api/manage/open-token', { method: 'POST' });
   },
 };

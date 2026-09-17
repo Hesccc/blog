@@ -26,8 +26,10 @@ def login():
         
     # Generate JWT token using timezone-aware UTC datetime
     now_utc = datetime.datetime.now(datetime.timezone.utc)
+    pwd_ts = int(user.update_time.timestamp()) if user.update_time else int(user.create_time.timestamp()) if user.create_time else 0
     token = jwt.encode({
         'username': user.username,
+        'pwd_ts': pwd_ts,
         'exp': now_utc + datetime.timedelta(days=1)
     }, current_app.config['SECRET_KEY'], algorithm='HS256')
     

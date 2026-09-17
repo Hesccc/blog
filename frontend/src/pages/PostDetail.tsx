@@ -1,63 +1,69 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../utils/api';
-import type { Post } from '../utils/api';
+import type { PostDetailData } from '../utils/api';
 import { Layout } from '../components/Layout';
+import { ScrollNav } from '../components/ScrollNav';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { Toc } from '../components/Toc';
+import { PostPosterModal } from '../components/PostPosterModal';
 import {
   IconCalendar,
   IconClock,
   IconEye,
   IconArrowLeft,
+  IconArrowRight,
   IconUser,
-  IconArrowUp,
-  IconArrowDown,
+  IconBookOpen,
 } from '../components/Icons';
 import { getDeterministicEmoji } from '../utils/emoji';
 
 export const PostDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [post, setPost] = useState<Post | null>(null);
+  const [post, setPost] = useState<PostDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showScrollNav, setShowScrollNav] = useState(false);
+  const [showPosterModal, setShowPosterModal] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
+  // 监听全文阅读滚动进度百分比
   useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollNav(window.scrollY > 220);
+    const calculateProgress = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight > 0) {
+        const percent = Math.min(100, Math.max(0, (scrollTop / docHeight) * 100));
+        setScrollProgress(percent);
+      }
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    calculateProgress();
+    window.addEventListener('scroll', calculateProgress, { passive: true });
+    return () => window.removeEventListener('scroll', calculateProgress);
   }, []);
-
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
-  };
-
-  const scrollToBottom = () => {
-    window.scrollTo({
-      top: document.documentElement.scrollHeight,
-      behavior: 'smooth',
-    });
-  };
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
     setLoading(true);
+    setError('');
+
     api.getPost(parseInt(id, 10))
       .then(data => {
+        if (!active) return;
         setPost(data);
         setLoading(false);
         document.title = `${data.title} - 散漫的老何`;
       })
       .catch(err => {
+        if (!active) return;
         setError(err.message || '加载文章详情失败');
         setLoading(false);
       });
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   const formattedDate = post
@@ -73,6 +79,19 @@ export const PostDetail: React.FC = () => {
 
   return (
     <Layout>
+      {/* 顶部阅读滚动进度条 */}
+      <div
+        className="reading-progress-bar"
+        style={{ width: `${scrollProgress}%` }}
+        role="progressbar"
+        aria-valuenow={Math.round(scrollProgress)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      />
+
+      {/* 统一的页面右侧悬浮上下滚动按钮（滚动后显示） */}
+      <ScrollNav />
+
       <div className="post-detail-layout">
         {loading ? (
           <div className="loading-state">
@@ -89,6 +108,17 @@ export const PostDetail: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* Sidebar Table of Contents (TOC) - 移动到文章内容左侧 */}
+            <aside className="post-sidebar">
+              <div className="post-sidebar-sticky">
+                <div className="toc-header-label">
+                  <span>文章目录</span>
+                </div>
+                <Toc content={post.content || ''} />
+              </div>
+            </aside>
+
+            {/* Main Article Content */}
             <article className="post-article-container">
               {/* Back to Home / Archives Breadcrumb */}
               <div className="post-breadcrumb">
@@ -153,14 +183,27 @@ export const PostDetail: React.FC = () => {
                       <span>{post.access_count} 次浏览</span>
                     </span>
                   </div>
-                  {post.author && (
-                    <div className="meta-right">
+                  <div className="meta-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    {post.author && (
                       <span className="meta-author">
                         <IconUser size={13} />
                         <span>{post.author}</span>
                       </span>
-                    </div>
-                  )}
+                    )}
+                    <button
+                      type="button"
+                      className="post-share-poster-btn"
+                      onClick={() => setShowPosterModal(true)}
+                      title="生成文章海报卡片"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      <span>生成海报</span>
+                    </button>
+                  </div>
                 </div>
               </header>
 
@@ -181,9 +224,83 @@ export const PostDetail: React.FC = () => {
                 <MarkdownRenderer content={post.content || ''} />
               </div>
 
-              {/* Article Footer */}
+              {/* Article Footer: 上一篇/下一篇导航 与 相关文章推荐 */}
               <footer className="post-footer">
+                {/* 1. 上一篇 / 下一篇 导航卡片 */}
+                <div className="post-nav-cards">
+                  {post.prev_post ? (
+                    <Link to={`/posts/${post.prev_post.id}`} className="post-nav-card post-nav-prev">
+                      <div className="post-nav-label">
+                        <IconArrowLeft size={13} />
+                        <span>上一篇</span>
+                      </div>
+                      <div className="post-nav-title">{post.prev_post.title}</div>
+                    </Link>
+                  ) : (
+                    <div className="post-nav-card post-nav-disabled">
+                      <div className="post-nav-label">上一篇</div>
+                      <div className="post-nav-title">已是第一篇文章</div>
+                    </div>
+                  )}
+
+                  {post.next_post ? (
+                    <Link to={`/posts/${post.next_post.id}`} className="post-nav-card post-nav-next">
+                      <div className="post-nav-label">
+                        <span>下一篇</span>
+                        <IconArrowRight size={13} />
+                      </div>
+                      <div className="post-nav-title">{post.next_post.title}</div>
+                    </Link>
+                  ) : (
+                    <div className="post-nav-card post-nav-disabled">
+                      <div className="post-nav-label">下一篇</div>
+                      <div className="post-nav-title">已是最新一篇文章</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. 相关推荐 (同分类/同标签) */}
+                {post.related_posts && post.related_posts.length > 0 && (
+                  <div className="post-related-section">
+                    <div className="post-related-heading">
+                      <IconBookOpen size={16} />
+                      <span>相关推荐</span>
+                    </div>
+                    <div className="post-related-grid">
+                      {post.related_posts.map(rPost => (
+                        <Link key={rPost.id} to={`/posts/${rPost.id}`} className="post-related-card">
+                          <div className="post-related-meta">
+                            {rPost.categories && rPost.categories[0] && (
+                              <span className="post-related-category">{rPost.categories[0].name}</span>
+                            )}
+                            <span className="post-related-date">
+                              {rPost.create_time ? new Date(rPost.create_time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                          <h4 className="post-related-title">{rPost.title}</h4>
+                          {rPost.summary && (
+                            <p className="post-related-summary">{rPost.summary}</p>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="post-footer-actions">
+                  <button
+                    type="button"
+                    className="btn-clean"
+                    onClick={() => setShowPosterModal(true)}
+                    style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    <span>生成分享海报</span>
+                  </button>
                   <Link to="/archives" className="btn-clean">
                     <IconArrowLeft size={14} />
                     <span>查看全部归档</span>
@@ -191,44 +308,17 @@ export const PostDetail: React.FC = () => {
                 </div>
               </footer>
             </article>
-
-            {/* Sidebar Table of Contents (TOC) */}
-            <aside className="post-sidebar">
-              <div className="post-sidebar-sticky">
-                <div className="toc-header-label">
-                  <span>文章目录</span>
-                </div>
-                <Toc content={post.content || ''} />
-              </div>
-            </aside>
-
-            {/* Quick Float Scroll Actions (至顶部 / 至底部) */}
-            <div className={`float-scroll-pill ${showScrollNav ? 'is-visible' : ''}`}>
-              <button
-                type="button"
-                className="scroll-pill-btn"
-                onClick={scrollToTop}
-                title="回到顶部 (Top)"
-                aria-label="回到顶部"
-              >
-                <IconArrowUp size={16} />
-                <span className="scroll-btn-text">回到顶部</span>
-              </button>
-              <div className="scroll-pill-divider" />
-              <button
-                type="button"
-                className="scroll-pill-btn"
-                onClick={scrollToBottom}
-                title="直达底部 (Down)"
-                aria-label="直达底部"
-              >
-                <IconArrowDown size={16} />
-                <span className="scroll-btn-text">直达底部</span>
-              </button>
-            </div>
           </>
         )}
       </div>
+
+      {/* 海报卡片生成 Modal */}
+      {showPosterModal && post && (
+        <PostPosterModal
+          post={post}
+          onClose={() => setShowPosterModal(false)}
+        />
+      )}
     </Layout>
   );
 };

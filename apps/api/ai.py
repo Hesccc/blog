@@ -4,9 +4,40 @@ from flask import Blueprint, request, jsonify
 from apps.exts import db
 from apps.models.model import Categories, Tags
 from apps.tools.llm import llm_chat_completion
+from apps.tools.ai_prompts import get_prompt_template, get_all_prompts_info, save_prompt_template
 from .middleware import token_required
 
 api_ai = Blueprint('api_ai', __name__)
+
+
+# ─── 自定义提示词 (Prompt) 管理接口 ──────────────────────────────────────────────
+
+@api_ai.route('/api/manage/ai/prompts', methods=['GET'])
+@token_required
+def ai_get_prompts():
+    """获取所有 AI 任务项的提示词配置（包含默认值与自定义状态）。"""
+    return jsonify({'prompts': get_all_prompts_info()})
+
+
+@api_ai.route('/api/manage/ai/prompts', methods=['PUT'])
+@token_required
+def ai_update_prompt():
+    """保存或恢复指定任务项的自定义 Prompt。"""
+    data = request.get_json() or {}
+    key = data.get('key', '').strip()
+    value = data.get('value', '').strip()
+
+    if not key:
+        return jsonify({'msg': 'Prompt 任务项标识 key 不能为空'}), 400
+
+    ok = save_prompt_template(key, value)
+    if not ok:
+        return jsonify({'msg': f'未知的 Prompt 任务项: {key}'}), 400
+
+    return jsonify({
+        'msg': '提示词配置已成功保存并实时生效！',
+        'prompts': get_all_prompts_info()
+    })
 
 
 # ─── 定时任务管理与日志查询接口 ──────────────────────────────────────────────
@@ -180,16 +211,10 @@ def ai_analyze_taxonomy():
     existing_cat_names = [c.name for c in existing_categories]
     existing_tag_names = [t.name for t in existing_tags]
 
-    system_prompt = (
-        "你是一个专业的中文技术博客编辑助手。请阅读用户提供的文章标题和内容正文，为该文章推荐最匹配的【1个分类】和【2~5个标签】。\n"
-        "现有候选分类库: " + json.dumps(existing_cat_names, ensure_ascii=False) + "\n"
-        "现有候选标签库: " + json.dumps(existing_tag_names, ensure_ascii=False) + "\n"
-        "规则：\n"
-        "1. 分类务必精准聚焦（必须返回 1 个字符串，优先匹配已有分类库，如不符合可建议 1 个新的通用分类名，避免重复创建微调词）；\n"
-        "2. 标签返回 2~5 个数组，尽量包含核心技术栈、语言、中间件或架构主题词；\n"
-        "3. 必须输出合法 JSON，结构如下：\n"
-        "{\"category\": \"分类名称\", \"tags\": [\"标签1\", \"标签2\"]}"
-    )
+    # 获取自定义或默认分类 Prompt，替换占位符
+    tpl = get_prompt_template('prompt_taxonomy')
+    system_prompt = tpl.replace('{category_list}', json.dumps(existing_cat_names, ensure_ascii=False))\
+                       .replace('{tag_list}', json.dumps(existing_tag_names, ensure_ascii=False))
 
     user_prompt = f"文章标题：{title}\n\n文章内容节选：\n{content[:4000]}"
 
@@ -282,13 +307,7 @@ def ai_generate_summary():
     if not content:
         return jsonify({'msg': '文章内容不能为空'}), 400
 
-    system_prompt = (
-        "你是一个资深技术专栏总编辑。请阅读用户的技术文章，提炼出一段精炼专业的文章内容摘要 (Summary)。\n"
-        "要求：\n"
-        "1. 摘要长度严格控制在 80~200 字以内（绝对不能超过 200 字），通顺连贯，直接阐述技术背景、核心实践方案及结论；\n"
-        "2. 语言简练，禁止“本文主要讲述了”、“作者在文中介绍了”等废话陈述；\n"
-        "3. 直接输出提炼好的纯文本段落，禁止包裹任何 Markdown 标记或多余引号。"
-    )
+    system_prompt = get_prompt_template('prompt_summary')
 
     user_prompt = f"文章标题：{title}\n\n正文：\n{content[:6000]}"
 
@@ -322,18 +341,7 @@ def ai_proofread():
     if not content:
         return jsonify({'msg': '待检查内容不能为空'}), 400
 
-    system_prompt = (
-        "你是一名严谨的文字编辑和技术图书校对专家。请校对用户提供的 Markdown 技术文本。\n"
-        "任务：\n"
-        "1. 检查并修正错别字、病句、主谓不通顺语句、重复冗余词；\n"
-        "2. 规范中英文混排空格（遵循“中文与英文/数字之间保持一个空格”的排版规范）；\n"
-        "3. 保持原有的 Markdown 标题、代码块、列表等结构完整不变；\n"
-        "4. 输出 JSON 格式：\n"
-        "{\n"
-        "  \"revised_content\": \"修正并润色后的完整 Markdown 文本\",\n"
-        "  \"suggestions\": [\"修改点1：修正某某错别字\", \"修改点2：调整某句病句使其通顺\"]\n"
-        "}"
-    )
+    system_prompt = get_prompt_template('prompt_proofread')
 
     user_prompt = f"请校对以下文本：\n\n{content[:8000]}"
 
@@ -363,13 +371,7 @@ def ai_expand():
     if not content:
         return jsonify({'msg': '待扩写内容不能为空'}), 400
 
-    system_prompt = (
-        "你是一个全栈架构师和技术写作专家。请根据用户文章已有的内容，结合扩写指示进行专业扩写。\n"
-        "要求：\n"
-        "1. 保持与原文相同的语言风格和 Markdown 格式标准；\n"
-        "2. 补充逻辑严密、细节丰富的内容（如原理解析、配置示例、避坑指南或最佳实践）；\n"
-        "3. 直接输出扩写并补充后的完整 Markdown 内容，不要有解释性开场白或结尾套话。"
-    )
+    system_prompt = get_prompt_template('prompt_expand')
 
     user_prompt = f"文章标题：{title}\n扩写要求：{instruction}\n\n当前文章正文：\n{content[:6000]}"
 

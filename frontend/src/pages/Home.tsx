@@ -5,6 +5,7 @@ import type { Post, Category, Tag } from '../utils/api';
 import { Layout } from '../components/Layout';
 import { PostCard } from '../components/PostCard';
 import { IconFolder, IconTag, IconClose, IconBookOpen } from '../components/Icons';
+import { ScrollNav } from '../components/ScrollNav';
 
 export const Home: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -183,6 +184,9 @@ export const Home: React.FC = () => {
 
   return (
     <Layout hero={homeHero}>
+      {/* 右侧上/下滚动导航按钮（滚动后显示） */}
+      <ScrollNav />
+
       <div className="home-content-container">
         {/* Active Filter Bar */}
         {(search || category || tag) && (

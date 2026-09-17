@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import { AdminLayout } from '../components/AdminLayout';
 
@@ -67,18 +68,55 @@ const TABS: SettingTab[] = [
       </svg>
     ),
   },
-  {
-    id: 'ai-scheduler',
-    name: 'AI 定时任务',
-    desc: '自动化提取分类/标签/摘要任务管理与执行日志',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
-      </svg>
-    ),
-  },
-];
+    {
+      id: 'ai-scheduler',
+      name: 'AI 定时任务',
+      desc: '自动化提取分类/标签/摘要任务管理与执行日志',
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
+    },
+    {
+      id: 'ai-prompts',
+      name: 'AI 提示词配置',
+      desc: '按任务项分类自定义各功能 Prompt 与模板变量',
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+      ),
+    },
+    {
+      id: 'open-api',
+      name: '开放 API 与同步',
+      desc: '思源笔记、Obsidian 及外部 Webhook 推送密钥与配置',
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      ),
+    },
+    {
+      id: 'backup',
+      name: '备份与容灾',
+      desc: '全站数据、Markdown、OSS 图片与数据库一键备份',
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      ),
+    },
+  ];
 
 export const AdminSettings: React.FC = () => {
   const [config, setConfig] = useState<Record<string, string>>(() => {
@@ -125,6 +163,59 @@ export const AdminSettings: React.FC = () => {
   const [togglingScheduler, setTogglingScheduler] = useState(false);
   const [triggeringScheduler, setTriggeringScheduler] = useState(false);
   const [schedulerMsg, setSchedulerMsg] = useState('');
+
+  // AI 提示词自定义配置状态
+  const [promptsList, setPromptsList] = useState<any[]>([]);
+  const [editingPromptKey, setEditingPromptKey] = useState<string | null>(null);
+  const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({});
+  const [savingPromptKey, setSavingPromptKey] = useState<string | null>(null);
+  const [promptMsg, setPromptMsg] = useState('');
+
+  // 开放 API Token 状态
+  const [openToken, setOpenToken] = useState('');
+  const [resettingToken, setResettingToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [openTokenMsg, setOpenTokenMsg] = useState('');
+
+  const loadOpenToken = () => {
+    api.adminGetOpenToken().then(res => {
+      setOpenToken(res.token || '');
+    }).catch(console.error);
+  };
+
+  const handleResetOpenToken = async () => {
+    if (!confirm('确定要重新生成开放 API 密钥吗？原有的 Token 将立即失效，请同步更新下游发布系统（如思源笔记）。')) return;
+    setResettingToken(true);
+    try {
+      const res = await api.adminResetOpenToken();
+      setOpenToken(res.token);
+      setOpenTokenMsg(res.msg || 'Token 已更新！');
+      setTimeout(() => setOpenTokenMsg(''), 4000);
+    } catch (err: unknown) {
+      setError((err as Error).message || '重置 Token 失败');
+    } finally {
+      setResettingToken(false);
+    }
+  };
+
+  const handleCopyOpenToken = () => {
+    if (!openToken) return;
+    navigator.clipboard.writeText(openToken).then(() => {
+      setTokenCopied(true);
+      setTimeout(() => setTokenCopied(false), 2000);
+    }).catch(() => {});
+  };
+
+  const loadPromptsData = () => {
+    api.aiGetPrompts().then(res => {
+      setPromptsList(res.prompts || []);
+      const drafts: Record<string, string> = {};
+      (res.prompts || []).forEach(p => {
+        drafts[p.key] = p.current_prompt;
+      });
+      setPromptDrafts(drafts);
+    }).catch(console.error);
+  };
 
   const loadSchedulerData = () => {
     api.aiGetSchedulerStatus().then(res => {
@@ -200,10 +291,33 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
+  const handleSavePrompt = async (key: string, value: string) => {
+    setSavingPromptKey(key);
+    setPromptMsg('');
+    try {
+      const res = await api.aiUpdatePrompt(key, value);
+      setPromptMsg(res.msg || 'Prompt 提示词保存成功！');
+      setPromptsList(res.prompts || []);
+      setEditingPromptKey(null);
+      setTimeout(() => setPromptMsg(''), 4000);
+    } catch (err: unknown) {
+      setError((err as Error).message || '保存提示词失败');
+    } finally {
+      setSavingPromptKey(null);
+    }
+  };
+
+  const handleResetPrompt = (key: string, defaultVal: string) => {
+    setPromptDrafts(prev => ({ ...prev, [key]: defaultVal }));
+    handleSavePrompt(key, defaultVal);
+  };
+
   useEffect(() => {
     api.getConfig()
       .then(data => { setConfig(data); setLoading(false); })
       .catch(err => { setError(err.message || '获取配置信息失败'); setLoading(false); });
+    loadPromptsData();
+    loadOpenToken();
   }, []);
 
   const handleChange = (key: string, value: string) => {
@@ -833,17 +947,342 @@ export const AdminSettings: React.FC = () => {
                 </div>
               )}
 
-              {/* Action Save Bar */}
-              <div className="settings-pane-footer">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="admin-btn admin-btn-primary"
-                  style={{ minWidth: '150px' }}
-                >
-                  {saving ? '正在保存更改...' : '保存当前设置'}
-                </button>
-              </div>
+              {/* Pane: AI Prompts Customization */}
+              {activeTab === 'ai-prompts' && (
+                <div className="settings-pane active">
+                  <div className="settings-pane-header">
+                    <h3 className="settings-pane-title">AI 任务项 Prompt 自定义配置</h3>
+                    <p className="settings-pane-desc">按功能分类配置大模型提示词模板，支持自由修改指导原则、输出约束与业务要求；保存后在定时任务调度与创作助手中即时生效。</p>
+                  </div>
+
+                  {promptMsg && (
+                    <div className="admin-alert admin-alert-success" style={{ marginBottom: '1.25rem' }}>
+                      <span>✓</span>
+                      <span>{promptMsg}</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {promptsList.map(item => {
+                      const isEditing = editingPromptKey === item.key;
+                      const isSaving = savingPromptKey === item.key;
+                      const draftValue = promptDrafts[item.key] ?? item.current_prompt;
+
+                      return (
+                        <div key={item.key} className="admin-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span className="admin-badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>
+                                  {item.category}
+                                </span>
+                                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--admin-text-1)', fontWeight: 600 }}>
+                                  {item.title}
+                                </h4>
+                                {item.is_customized ? (
+                                  <span style={{ fontSize: '0.72rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>
+                                    ● 已自定义
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-3)', background: 'var(--admin-hover)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>
+                                    默认模板
+                                  </span>
+                                )}
+                              </div>
+                              <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: 'var(--admin-text-3)' }}>
+                                {item.desc}
+                              </p>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              {item.is_customized && (
+                                <button
+                                  type="button"
+                                  className="admin-btn admin-btn-ghost admin-btn-sm"
+                                  onClick={() => handleResetPrompt(item.key, item.default_prompt)}
+                                  disabled={isSaving}
+                                  title="清空自定义配置并恢复至系统内置默认 Prompt"
+                                >
+                                  恢复默认
+                                </button>
+                              )}
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="admin-btn admin-btn-primary admin-btn-sm"
+                                    onClick={() => handleSavePrompt(item.key, draftValue)}
+                                    disabled={isSaving}
+                                  >
+                                    {isSaving ? '保存中...' : '保存修改'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="admin-btn admin-btn-secondary admin-btn-sm"
+                                    onClick={() => {
+                                      setEditingPromptKey(null);
+                                      setPromptDrafts(prev => ({ ...prev, [item.key]: item.current_prompt }));
+                                    }}
+                                    disabled={isSaving}
+                                  >
+                                    取消
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="admin-btn admin-btn-secondary admin-btn-sm"
+                                  onClick={() => setEditingPromptKey(item.key)}
+                                >
+                                  编辑 Prompt
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {isEditing ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <textarea
+                                className="admin-form-control"
+                                rows={8}
+                                value={draftValue}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setPromptDrafts(prev => ({ ...prev, [item.key]: val }));
+                                }}
+                                style={{
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: '0.82rem',
+                                  lineHeight: 1.6,
+                                  background: 'var(--admin-bg)',
+                                  resize: 'vertical',
+                                }}
+                              />
+                              <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-3)' }}>
+                                💡 提示：支持保留系统预设占位符，例如分类提取支持 <code>{'{category_list}'}</code> 与 <code>{'{tag_list}'}</code>。
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{
+                              background: 'var(--admin-bg)',
+                              border: '1px solid var(--admin-border)',
+                              borderRadius: 8,
+                              padding: '0.85rem 1rem',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '0.78rem',
+                              color: 'var(--admin-text-2)',
+                              lineHeight: 1.6,
+                              whiteSpace: 'pre-wrap',
+                              maxHeight: '140px',
+                              overflowY: 'auto',
+                            }}>
+                              {item.current_prompt}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Pane: Open API & Siyuan Webhook Sync */}
+              {activeTab === 'open-api' && (
+                <div className="settings-pane active">
+                  <div className="settings-pane-header">
+                    <h3 className="settings-pane-title">开放 API 与外部发布对接</h3>
+                    <p className="settings-pane-desc">支持思源笔记（通过 siyuan-plugin-publisher 插件）、Obsidian、以及外部自动化系统（Webhook / CI/CD）一键推送文章入库与幂等更新。</p>
+                  </div>
+
+                  {openTokenMsg && (
+                    <div className="admin-alert admin-alert-success" style={{ marginBottom: '1.25rem' }}>
+                      <span>✓</span>
+                      <span>{openTokenMsg}</span>
+                    </div>
+                  )}
+
+                  {/* 1. API 认证密钥卡片 */}
+                  <div className="admin-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--admin-text-1)', fontWeight: 600 }}>
+                          🔑 开放接口专属 API Token
+                        </h4>
+                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--admin-text-3)' }}>
+                          高强度独立长效密钥，不受管理员日常登录注销影响，用于下游发布系统鉴权。
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn-secondary admin-btn-sm"
+                          onClick={handleCopyOpenToken}
+                          disabled={!openToken}
+                        >
+                          {tokenCopied ? '✓ 已复制' : '复制 Token'}
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn-ghost admin-btn-sm"
+                          onClick={handleResetOpenToken}
+                          disabled={resettingToken}
+                          title="重新生成随机 Token"
+                        >
+                          {resettingToken ? '重置中…' : '重新生成'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--admin-bg)',
+                      border: '1px solid var(--admin-border)',
+                      borderRadius: 8,
+                      padding: '0.75rem 1rem',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.88rem',
+                      color: openToken ? 'var(--admin-text-1)' : 'var(--admin-text-3)',
+                      wordBreak: 'break-all',
+                      userSelect: 'all',
+                      letterSpacing: '0.02em',
+                    }}>
+                      {openToken || '正在生成或读取开放 Token...'}
+                    </div>
+                  </div>
+
+                  {/* 2. 思源笔记与外部系统对接指引 */}
+                  <div className="admin-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--admin-text-1)', fontWeight: 600 }}>
+                      🚀 思源笔记 Publisher 插件对接配置指南
+                    </h4>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.85rem', color: 'var(--admin-text-2)', lineHeight: 1.6 }}>
+                      <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 8, border: '1px solid var(--admin-border)' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--admin-text-1)', marginBottom: '0.5rem' }}>
+                          1. 接口同步请求地址 (Webhook Endpoint)
+                        </div>
+                        <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
+                          {window.location.origin}/api/open/posts/sync
+                        </code>
+                      </div>
+
+                      <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 8, border: '1px solid var(--admin-border)' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--admin-text-1)', marginBottom: '0.5rem' }}>
+                          2. 请求头认证配置 (HTTP Headers)
+                        </div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--admin-text-2)' }}>
+                          Authorization: Bearer {openToken || '<YOUR_TOKEN>'}<br />
+                          Content-Type: application/json
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'var(--admin-bg)', padding: '1rem', borderRadius: 8, border: '1px solid var(--admin-border)' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--admin-text-1)', marginBottom: '0.5rem' }}>
+                          3. 请求体数据协议规范 (JSON Payload)
+                        </div>
+                        <pre style={{
+                          margin: 0,
+                          padding: '0.75rem',
+                          background: 'var(--admin-card-bg)',
+                          borderRadius: 6,
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '0.78rem',
+                          overflowX: 'auto',
+                          color: 'var(--admin-text-1)',
+                        }}>
+{`{
+  "source_id": "20240315120000-xxxx", // 思源文档唯一ID (支持自动覆盖更新，不重复生篇)
+  "title": "文章标题",
+  "content": "# Markdown 文章正文...",
+  "category": "分类名称",           // 可选，不存在自动创建
+  "tags": ["标签1", "标签2"],       // 可选，数组或逗号分隔字符串
+  "thumbnail": "https://...",     // 可选封面配图
+  "status": 0                     // 0: 直接发布 (默认), 3: 存为草稿
+}`}
+                        </pre>
+                      </div>
+
+                      <div style={{ color: 'var(--admin-text-3)', fontSize: '0.8rem' }}>
+                        💡 <strong>幂等特性保证</strong>：相同 <code>source_id</code>（或思源文档 ID）再次推送时，系统将智能就地更新该文章的标题、内容、分类与标签，而不会产生重复多余文章。
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Pane: Backup & Disaster Recovery */}
+              {activeTab === 'backup' && (
+                <div className="settings-pane active">
+                  <div className="settings-pane-header">
+                    <h3 className="settings-pane-title">数据备份与导出</h3>
+                    <p className="settings-pane-desc">支持全站数据、Markdown 原稿、OSS 图片库及底层 MySQL 数据库的一键备份与下载，同时提供独立备份中心进行历史版本管理与快速还原。</p>
+                  </div>
+
+                  <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div className="admin-card" style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>📦 全站数据完整包</div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>打包 SQL Dump、uploads 静态图与文章数据</p>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                        <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none' }}>
+                          前往打包
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="admin-card" style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>🗄️ 数据库 SQL 备份</div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>一键生成可移植的 MySQL 数据库脚本与还原</p>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                        <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none' }}>
+                          管理数据库
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="admin-card" style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>📝 Markdown 文章导出</div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>批量打包下载全站文章为 .md 压缩包</p>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                        <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none' }}>
+                          导出文章
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-card" style={{ padding: '1.25rem 1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', color: 'var(--admin-text-1)' }}>进入独立备份管理中心</h4>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-3)' }}>可查阅已生成的全部历史归档包大小与时间戳，进行一键下载、文件管理或灾难恢复。</p>
+                      </div>
+                      <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none', whiteSpace: 'nowrap', padding: '0.35rem 0.9rem' }}>
+                        打开数据备份中心 →
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Save Bar (仅常规表单 Tab 展现) */}
+              {!['ai-scheduler', 'ai-prompts', 'open-api', 'backup'].includes(activeTab) && (
+                <div className="settings-pane-footer">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="admin-btn admin-btn-primary"
+                    style={{ minWidth: '150px' }}
+                  >
+                    {saving ? '正在保存更改...' : '保存当前设置'}
+                  </button>
+                </div>
+              )}
             </main>
         </form>
       )}

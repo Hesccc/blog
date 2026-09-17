@@ -1,13 +1,21 @@
 import hashlib
-import functools
 import platform
 import importlib.metadata
 import logging
 import subprocess
 import psutil
 from datetime import datetime
-from flask import session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+
+
+def escape_like(search_str: str) -> str:
+    """
+    对 SQL LIKE 查询中的特殊通配符 % 与 _ 以及转义符 \\ 进行安全转义，
+    防止利用通配符进行全表扫描拒绝服务攻击 (Wildcard DoS) 或模糊注入。
+    """
+    if not search_str:
+        return ''
+    return search_str.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
 # ──────────────────────────────────────────────
@@ -50,17 +58,6 @@ def verify_and_upgrade_password(user, input_passwd: str, db_session) -> bool:
     return False
 
 
-def auth(func):
-    @functools.wraps(func)
-    def inner(*args, **kwargs):
-        username = session.get("username")
-        if not username:
-            return redirect(url_for('blue_index.index'))
-        return func(*args, **kwargs)
-
-    return inner
-
-
 # ──────────────────────────────────────────────
 # 缓存的系统环境检测（彻底消除 subprocess 与 CPU 阻塞开销）
 # ──────────────────────────────────────────────
@@ -92,6 +89,21 @@ def _get_static_env():
     py_v = platform.python_version()
     os_name = platform.system()
 
+    db_name = "MySQL"
+    try:
+        from apps.exts import db
+        dialect = db.engine.dialect.name
+        if 'postgres' in dialect:
+            db_name = "PostgreSQL"
+        elif 'maria' in dialect:
+            db_name = "MariaDB"
+        elif 'sqlite' in dialect:
+            db_name = "SQLite"
+        else:
+            db_name = "MySQL / MariaDB"
+    except Exception:
+        db_name = "MySQL / MariaDB"
+
     _STATIC_ENV_CACHE = {
         'os': os_name,
         'python_v': py_v,
@@ -100,7 +112,7 @@ def _get_static_env():
         'node_v': node_v,
         'run_env': f"Python:{py_v}; OS:{os_name}; Flask:{flask_v}; SQLAlchemy:{sqla_v}; Node:{node_v}",
         'blog_v': "v1.2.0",
-        'db_type': 'MySQL',
+        'db_type': db_name,
     }
 
     # 首次预触发一次 CPU 统计，使后续 non-blocking 获取有效
