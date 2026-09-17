@@ -203,10 +203,11 @@ def export_markdown_archive():
             u_time = p.update_time.strftime('%Y-%m-%d %H:%M:%S') if p.update_time else ''
             p_cats = cat_map.get(p.id, [])
             p_tags = tag_map.get(p.id, [])
+            p_title_clean = (p.title or '').replace('"', '\\"')
 
             frontmatter = [
                 "---",
-                f"title: \"{p.title.replace('\"', '\\\"') if p.title else ''}\"",
+                f'title: "{p_title_clean}"',
                 f"date: {c_time}",
                 f"updated: {u_time}",
                 f"author: \"{p.author or 'admin'}\"",
