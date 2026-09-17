@@ -13,10 +13,11 @@ from .middleware import token_required
 api_posts = Blueprint('api_posts', __name__)
 
 
-def serialize_posts(posts):
+def serialize_posts(posts, include_content=False):
     """
     批量序列化文章列表，消除 N+1 查询瓶颈。
     无论列表文章数量多少，始终只执行 2 次批量查询获取关联分类与标签。
+    include_content=False 时（列表模式），正文仅保留前 200 字符，并将响应体积从几百KB缩减至几KB。
     """
     if not posts:
         return []
@@ -66,13 +67,18 @@ def serialize_posts(posts):
     # 3. 内存聚合生成序列化对象
     results = []
     for post in posts:
+        raw_content = post.content or ''
+        word_count = len(raw_content) // 2
         # summary 优先展示 summary 字段，为空时降级 meta_description
-        article_summary = post.summary or post.meta_description or (post.content[:150] if post.content else '')
+        article_summary = post.summary or post.meta_description or (raw_content[:150] if raw_content else '')
+        # 列表模式下不返回几十KB/几百KB的完整Markdown正文，仅保留前200字符作为降级兜底
+        res_content = raw_content if include_content else (raw_content[:200] if raw_content else '')
         results.append({
             'id': post.id,
             'title': post.title,
             'author': post.author,
-            'content': post.content,
+            'content': res_content,
+            'word_count': word_count,
             'access_count': post.access_count,
             'thumbnail': post.thumbnail,
             'status': post.status,
@@ -87,10 +93,10 @@ def serialize_posts(posts):
 
 
 def serialize_post(post):
-    """单个文章序列化（复用批量逻辑，保持返回结构严格一致）。"""
+    """单个文章序列化（详情页调用，必须包含完整正文内容）。"""
     if not post:
         return None
-    res = serialize_posts([post])
+    res = serialize_posts([post], include_content=True)
     return res[0] if res else None
 
 # ----------------- PUBLIC ENDPOINTS -----------------

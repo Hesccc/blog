@@ -5,6 +5,7 @@ export interface Post {
   title: string;
   author: string;
   content: string;
+  word_count?: number;
   access_count: number;
   thumbnail: string | null;
   status: number;

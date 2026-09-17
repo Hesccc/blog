@@ -86,22 +86,8 @@ def get_post_deterministic_cover(post_id: int):
     if cached_filepath.exists() and cached_filepath.stat().st_size > 0:
         return send_from_directory(config.CACHE_IMAGE_DIR, cached_filename)
 
-    # 尝试从外部图源下载缓存
+    # 未缓存时直接 302 重定向给客户端浏览器加载，杜绝后端 Gunicorn 进程阻塞等待海外网络
     external_url = f"https://picsum.photos/seed/{seed}/800/500"
-    try:
-        req = urllib.request.Request(
-            external_url,
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        )
-        with urllib.request.urlopen(req, timeout=5) as response:
-            if response.status == 200:
-                with open(cached_filepath, 'wb') as f:
-                    f.write(response.read())
-                return send_from_directory(config.CACHE_IMAGE_DIR, cached_filename)
-    except Exception:
-        # 外部网络不通或超时时，降级重定向到 picsum 外部链接尝试由浏览器直接加载
-        pass
-
     return redirect(external_url)
 
 
