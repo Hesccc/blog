@@ -34,11 +34,13 @@ def init_exts(app):
         if Config.query.first() is None:
             # 种子配置
             configs = [
-                Config(id=1, name='website_url', value='hesc.info'),
-                Config(id=2, name='website_title', value='散漫的老何'),
-                Config(id=3, name='website_keywords', value='Splunk;Python;Shell;Mysql;SQL'),
-                Config(id=4, name='website_desc', value='这是一个使用Python Flask、HTML5、bootstrap开发的博客系统'),
-                Config(id=5, name='website_icp', value='湘ICP备20003211号-1')
+                Config(id=1, name='website_url', value='https://hesc.info'),
+                Config(id=2, name='website_title', value='需要哈气的纸飞机'),
+                Config(id=3, name='website_keywords', value='Splunk;Python;Shell;MySQL;Linux;Docker;AI'),
+                Config(id=4, name='website_desc', value='记录技术沉淀 · 分享生活思考 · 散漫而行'),
+                Config(id=5, name='website_icp', value='湘ICP备20003211号-2'),
+                Config(id=6, name='about_profile_subtitle', value='💻 不专业的黑客 / 安全运营 / Splunk专家 / 技术博主'),
+                Config(id=7, name='homepage_subtitle', value='记录技术 · 分享生活 · 散漫而行')
             ]
             db.session.add_all(configs)
 
@@ -81,7 +83,7 @@ def init_exts(app):
                     id=1,
                     title='Hello World',
                     author='admin',
-                    content='欢迎使用散漫的老何的博客系统！这是你的第一篇文章。',
+                    content='欢迎使用个人技术博客系统！这是你的第一篇文章。',
                     access_count=0,
                     status=0,
                     create_time=datetime.now(),

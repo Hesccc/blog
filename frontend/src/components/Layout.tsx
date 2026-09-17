@@ -92,7 +92,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
   // 全局动态网页标题更新
   useEffect(() => {
     const updateTitle = () => {
-      const baseTitle = config.website_title || '散漫的老何';
+      const baseTitle = config.website_title || '需要哈气的纸飞机';
       const currentTitle = document.title;
       if (currentTitle.endsWith(' - 后台管理') || currentTitle === '登录 - 后台管理') {
         return;
@@ -176,7 +176,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  const siteTitle = config.website_title || '散漫的老何';
+  const siteTitle = config.website_title || '需要哈气的纸飞机';
   const siteICP = config.website_icp || '湘ICP备20003211号-1';
 
   return (

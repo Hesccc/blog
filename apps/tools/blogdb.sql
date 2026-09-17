@@ -63,7 +63,7 @@ CREATE TABLE `config` (
 
 LOCK TABLES `config` WRITE;
 
-insert  into `config`(`id`,`name`,`value`) values (1,'website_url','hesc.info'),(2,'website_title','散漫的老何'),(3,'website_keywords','Splunk;Python;Shell;Mysql;SQL'),(4,'website_desc','这是一个使用Python Flask、HTML5、bootstrap开发的博客系统'),(5,'website_icp','湘ICP备20003211号-1');
+insert  into `config`(`id`,`name`,`value`) values (1,'website_url','https://hesc.info'),(2,'website_title','需要哈气的纸飞机'),(3,'website_keywords','Splunk;Python;Shell;MySQL;Linux;Docker;AI'),(4,'website_desc','记录技术沉淀 · 分享生活思考 · 散漫而行'),(5,'website_icp','湘ICP备20003211号-2');
 
 UNLOCK TABLES;
 

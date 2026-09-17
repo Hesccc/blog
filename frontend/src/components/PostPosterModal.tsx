@@ -9,7 +9,7 @@ interface PostPosterModalProps {
 
 export const PostPosterModal: React.FC<PostPosterModalProps> = ({
   post,
-  siteTitle = '散漫的老何',
+  siteTitle = '需要哈气的纸飞机',
   onClose,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);

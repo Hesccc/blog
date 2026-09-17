@@ -24,7 +24,7 @@ export const Archives: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    document.title = '文章归档 - 散漫的老何';
+    document.title = '文章归档 - 需要哈气的纸飞机';
     setLoading(true);
     api.getPosts({ per_page: 9999 })
       .then(data => {

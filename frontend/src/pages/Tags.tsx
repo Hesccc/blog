@@ -20,7 +20,7 @@ export const Tags: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    document.title = '标签索引 - 散漫的老何';
+    document.title = '标签索引 - 需要哈气的纸飞机';
     setLoading(true);
 
     Promise.all([api.getTags(), api.getPosts({ per_page: 9999 })])

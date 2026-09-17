@@ -16,7 +16,7 @@ export const About: React.FC = () => {
   const [loading, setLoading] = useState(() => Object.keys(config).length === 0);
 
   useEffect(() => {
-    document.title = '关于本站 - 散漫的老何';
+    document.title = '关于本站 - 需要哈气的纸飞机';
     api.getConfig()
       .then(data => {
         setConfig(data);
@@ -28,7 +28,7 @@ export const About: React.FC = () => {
       });
   }, []);
 
-  const siteTitle = config.website_title || '散漫的老何';
+  const siteTitle = config.website_title || '需要哈气的纸飞机';
   const siteDesc = config.website_desc || '这是基于现代技术栈构建的个人博客与数字花园。专注于系统运维、数据工程、安全运营与日常开发实践。';
   const aboutSubtitle = config.about_profile_subtitle || '安全运营 / 数据分析 / 自动化运维 / 独立技术记录者';
 

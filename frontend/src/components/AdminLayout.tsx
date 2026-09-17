@@ -130,10 +130,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       const cached = localStorage.getItem('blog_config');
       if (cached) {
         const parsed = JSON.parse(cached);
-        return parsed.website_title || '散漫的老何';
+        return parsed.website_title || '需要哈气的纸飞机';
       }
     } catch { }
-    return '散漫的老何';
+    return '需要哈气的纸飞机';
   });
   const [avatar, setAvatar] = useState(() => {
     try {
