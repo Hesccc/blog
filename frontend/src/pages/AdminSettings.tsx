@@ -106,7 +106,7 @@ const TABS: SettingTab[] = [
     },
     {
       id: 'backup',
-      name: '备份与容灾',
+      name: '备份与灾备',
       desc: '全站数据、Markdown、OSS 图片与数据库一键备份',
       icon: (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -1214,7 +1214,7 @@ export const AdminSettings: React.FC = () => {
               {activeTab === 'backup' && (
                 <div className="settings-pane active">
                   <div className="settings-pane-header">
-                    <h3 className="settings-pane-title">数据备份与导出</h3>
+                    <h3 className="settings-pane-title">数据备份与灾备</h3>
                     <p className="settings-pane-desc">支持全站数据、Markdown 原稿、OSS 图片库及底层 MySQL 数据库的一键备份与下载，同时提供独立备份中心进行历史版本管理与快速还原。</p>
                   </div>
 
@@ -1225,7 +1225,7 @@ export const AdminSettings: React.FC = () => {
                         <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>打包 SQL Dump、uploads 静态图与文章数据</p>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none' }}>
+                        <Link to="/admin/backups" className="backup-btn backup-btn-secondary" style={{ textDecoration: 'none' }}>
                           前往打包
                         </Link>
                       </div>
@@ -1237,7 +1237,7 @@ export const AdminSettings: React.FC = () => {
                         <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>一键生成可移植的 MySQL 数据库脚本与还原</p>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none' }}>
+                        <Link to="/admin/backups" className="backup-btn backup-btn-secondary" style={{ textDecoration: 'none' }}>
                           管理数据库
                         </Link>
                       </div>
@@ -1249,7 +1249,7 @@ export const AdminSettings: React.FC = () => {
                         <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>批量打包下载全站文章为 .md 压缩包</p>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none' }}>
+                        <Link to="/admin/backups" className="backup-btn backup-btn-secondary" style={{ textDecoration: 'none' }}>
                           导出文章
                         </Link>
                       </div>
@@ -1262,7 +1262,7 @@ export const AdminSettings: React.FC = () => {
                         <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', color: 'var(--admin-text-1)' }}>进入独立备份管理中心</h4>
                         <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-3)' }}>可查阅已生成的全部历史归档包大小与时间戳，进行一键下载、文件管理或灾难恢复。</p>
                       </div>
-                      <Link to="/admin/backups" className="backup-mini-btn" style={{ textDecoration: 'none', whiteSpace: 'nowrap', padding: '0.35rem 0.9rem' }}>
+                      <Link to="/admin/backups" className="backup-btn backup-btn-primary" style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}>
                         打开数据备份中心 →
                       </Link>
                     </div>
