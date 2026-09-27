@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import { AdminLayout } from '../components/AdminLayout';
+import { BackupContent } from '../components/BackupContent';
 
 interface SettingTab {
   id: string;
@@ -1212,61 +1212,8 @@ export const AdminSettings: React.FC = () => {
 
               {/* Pane: Backup & Disaster Recovery */}
               {activeTab === 'backup' && (
-                <div className="settings-pane active">
-                  <div className="settings-pane-header">
-                    <h3 className="settings-pane-title">数据备份与灾备</h3>
-                    <p className="settings-pane-desc">支持全站数据、Markdown 原稿、OSS 图片库及底层 MySQL 数据库的一键备份与下载，同时提供独立备份中心进行历史版本管理与快速还原。</p>
-                  </div>
-
-                  <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <div className="admin-card" style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>📦 全站数据完整包</div>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>打包 SQL Dump、uploads 静态图与文章数据</p>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <Link to="/admin/backups" className="backup-btn backup-btn-secondary" style={{ textDecoration: 'none' }}>
-                          前往打包
-                        </Link>
-                      </div>
-                    </div>
-
-                    <div className="admin-card" style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>🗄️ 数据库 SQL 备份</div>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>一键生成可移植的 MySQL 数据库脚本与还原</p>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <Link to="/admin/backups" className="backup-btn backup-btn-secondary" style={{ textDecoration: 'none' }}>
-                          管理数据库
-                        </Link>
-                      </div>
-                    </div>
-
-                    <div className="admin-card" style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--admin-text-1)', marginBottom: '0.35rem' }}>📝 Markdown 文章导出</div>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--admin-text-3)', margin: '0', lineHeight: 1.5 }}>批量打包下载全站文章为 .md 压缩包</p>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <Link to="/admin/backups" className="backup-btn backup-btn-secondary" style={{ textDecoration: 'none' }}>
-                          导出文章
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="admin-card" style={{ padding: '1.25rem 1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-                      <div>
-                        <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', color: 'var(--admin-text-1)' }}>进入独立备份管理中心</h4>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--admin-text-3)' }}>可查阅已生成的全部历史归档包大小与时间戳，进行一键下载、文件管理或灾难恢复。</p>
-                      </div>
-                      <Link to="/admin/backups" className="backup-btn backup-btn-primary" style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                        打开数据备份中心 →
-                      </Link>
-                    </div>
-                  </div>
+                <div className="settings-pane active" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <BackupContent />
                 </div>
               )}
 
