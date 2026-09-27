@@ -532,12 +532,14 @@ export const api = {
   },
 
   adminDownloadBackup: async (filename: string): Promise<void> => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('blog_token') || localStorage.getItem('token') || '';
     const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const response = await fetch(`/api/manage/backups/download/${encodeURIComponent(filename)}`, {
+    const query = token ? `?token=${encodeURIComponent(token)}` : '';
+    const url = `${API_BASE_URL}/api/manage/backups/download/${encodeURIComponent(filename)}${query}`;
+    const response = await fetch(url, {
       method: 'GET',
       headers,
     });
