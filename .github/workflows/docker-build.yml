@@ -18,20 +18,8 @@ permissions:
 
 jobs:
   build-and-push:
-    name: Build & Push ${{ matrix.service }}
+    name: Build & Push AeroNote
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: backend
-            context: .
-            dockerfile: Dockerfile.backend
-            image_name: aeronote-backend
-          - service: frontend
-            context: ./frontend
-            dockerfile: ./frontend/Dockerfile
-            image_name: aeronote-frontend
 
     steps:
       - name: Checkout repository
@@ -59,7 +47,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.image_name }}
+          images: ${{ env.IMAGE_PREFIX }}/aeronote
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -71,10 +59,10 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          context: .
+          file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          cache-from: type=gha,scope=aeronote
+          cache-to: type=gha,mode=max,scope=aeronote
