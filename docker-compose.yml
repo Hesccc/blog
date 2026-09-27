@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/hesccc/aeronote:latest
+    image: ${DOCKER_IMAGE:-hesccc/aeronote:latest}
     container_name: aeronote-app
     restart: unless-stopped
     depends_on:
