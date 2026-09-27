@@ -1,8 +1,9 @@
 from ..exts import db
+from .model import BaseModel
 from datetime import datetime
 
 
-class OssImage(db.Model):
+class OssImage(BaseModel):
     __tablename__ = 'oss_images'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

@@ -423,7 +423,7 @@ export const AdminSettings: React.FC = () => {
                       value={config.website_title || ''}
                       onChange={e => handleChange('website_title', e.target.value)}
                       className="admin-form-control"
-                      placeholder="如：需要哈气的纸飞机"
+                      placeholder="如：AeroNote"
                     />
                     <div className="admin-form-hint">显示于前台顶栏、移动端菜单、浏览器标签与全站副标题</div>
                   </div>

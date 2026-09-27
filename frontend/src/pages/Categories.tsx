@@ -19,7 +19,7 @@ export const Categories: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    document.title = '专题分类 - 需要哈气的纸飞机';
+    document.title = '专题分类 - AeroNote';
     setLoading(true);
 
     Promise.all([api.getCategories(), api.getPosts({ per_page: 9999 })])

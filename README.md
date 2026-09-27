@@ -1,6 +1,6 @@
-# 🚀 Modern Blog System (基于 Flask + React + TypeScript)
+# 🚀 AeroNote (基于 Flask + React + TypeScript)
 
-这是一个高颜值、现代化、轻量级的前后端分离个人博客系统。前端视觉风格深度参考了著名的 Hexo Fluid 主题设计，拥有极佳的视觉表现、顺滑的微动画和全面的暗色模式（Dark Mode）自适应。后端提供稳定高效的 RESTful API、智能大模型处理流水线、多数据库支持及多系统对接发布能力。
+这是一个高颜值、现代化、轻量级的前后端分离个人博客与知识笔记系统。前端视觉风格深度参考了著名的 Hexo Fluid 主题设计，拥有极佳的视觉表现、顺滑的微动画和全面的暗色模式（Dark Mode）自适应。后端提供稳定高效的 RESTful API、智能大模型处理流水线、多数据库支持及多系统对接发布能力。
 
 ---
 

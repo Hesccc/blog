@@ -35,7 +35,7 @@ def init_exts(app):
             # 种子配置
             configs = [
                 Config(id=1, name='website_url', value='https://hesc.info'),
-                Config(id=2, name='website_title', value='需要哈气的纸飞机'),
+                Config(id=2, name='website_title', value='AeroNote'),
                 Config(id=3, name='website_keywords', value='Splunk;Python;Shell;MySQL;Linux;Docker;AI'),
                 Config(id=4, name='website_desc', value='记录技术沉淀 · 分享生活思考 · 散漫而行'),
                 Config(id=5, name='website_icp', value='湘ICP备20003211号-2'),

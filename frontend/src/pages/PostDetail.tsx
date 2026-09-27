@@ -53,7 +53,7 @@ export const PostDetail: React.FC = () => {
         if (!active) return;
         setPost(data);
         setLoading(false);
-        document.title = `${data.title} - 需要哈气的纸飞机`;
+        document.title = `${data.title} - AeroNote`;
       })
       .catch(err => {
         if (!active) return;

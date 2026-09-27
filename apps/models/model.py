@@ -1,14 +1,21 @@
 from ..exts import db
 
 
-class Config(db.Model):
+class BaseModel(db.Model):
+    __abstract__ = True
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+class Config(BaseModel):
     __tablename__ = 'config'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(200), nullable=False, unique=True)
     value = db.Column(db.Text, nullable=False)
 
 
-class User(db.Model):
+class User(BaseModel):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     username = db.Column(db.String(100), nullable=False, unique=True)
@@ -24,7 +31,7 @@ class User(db.Model):
         return f'<User {self.username}>'
 
 
-class History(db.Model):
+class History(BaseModel):
     __tablename__ = 'history'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     username = db.Column(db.String(100), nullable=False)
@@ -32,7 +39,7 @@ class History(db.Model):
     type = db.Column(db.String(20), nullable=True)
 
 
-class Posts(db.Model):
+class Posts(BaseModel):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     title = db.Column(db.String(255), nullable=False)
@@ -49,7 +56,7 @@ class Posts(db.Model):
     deleted = db.Column(db.Integer, default=0, nullable=False)
 
 
-class Categories(db.Model):
+class Categories(BaseModel):
     __tablename__ = 'categories'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     create_time = db.Column(db.DateTime, nullable=False)
@@ -66,7 +73,7 @@ class Categories(db.Model):
     color = db.Column(db.String(25), nullable=True)
 
 
-class Tags(db.Model):
+class Tags(BaseModel):
     __tablename__ = 'tags'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     create_time = db.Column(db.DateTime, nullable=False)
@@ -79,7 +86,7 @@ class Tags(db.Model):
     color = db.Column(db.String(25), nullable=True)
 
 
-class PostTags(db.Model):
+class PostTags(BaseModel):
     __tablename__ = 'post_tags'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     create_time = db.Column(db.DateTime, nullable=False)
@@ -89,7 +96,7 @@ class PostTags(db.Model):
     tag_id = db.Column(db.Integer, nullable=True)
 
 
-class PostCategories(db.Model):
+class PostCategories(BaseModel):
     __tablename__ = 'post_categories'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # ID 主键，自增
     create_time = db.Column(db.DateTime, nullable=False)

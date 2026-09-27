@@ -11,10 +11,10 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [siteTitle, setSiteTitle] = useState('需要哈气的纸飞机');
+  const [siteTitle, setSiteTitle] = useState('AeroNote');
 
   useEffect(() => {
-    document.title = '控制台登录 - 需要哈气的纸飞机';
+    document.title = '控制台登录 - AeroNote';
     if (localStorage.getItem('blog_token')) {
       navigate('/admin');
     }

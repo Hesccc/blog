@@ -1,7 +1,7 @@
 [project]
-name = "blogs"
+name = "aeronote"
 version = "0.1.0"
-description = "Add your description here"
+description = "AeroNote - 现代化个人博客与知识笔记系统"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

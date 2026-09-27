@@ -11,18 +11,18 @@ services:
     # image: mysql:8.0
     # 如需使用极轻量 PostgreSQL (Alpine 镜像仅约 80MB)：
     # image: postgres:16-alpine
-    container_name: blog-db
+    container_name: aeronote-db
     restart: unless-stopped
     environment:
       # MySQL / MariaDB 变量
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
-      MYSQL_DATABASE: ${DB_NAME:-blog}
-      MYSQL_USER: ${DB_USER:-blog}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-blog_password}
+      MYSQL_DATABASE: ${DB_NAME:-aeronote}
+      MYSQL_USER: ${DB_USER:-aeronote}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-aeronote_password}
       # PostgreSQL 兼容环境变量
-      POSTGRES_DB: ${DB_NAME:-blog}
+      POSTGRES_DB: ${DB_NAME:-aeronote}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-blog_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-aeronote_password}
     ports:
       - "${DB_PORT:-3306}:3306"
     volumes:
@@ -30,7 +30,7 @@ services:
       # 如果使用 PostgreSQL，请将挂载路径切换为:
       # - db_data:/var/lib/postgresql/data
     networks:
-      - blog-network
+      - aeronote-network
 
   # ----------------------------------------------------
   # 2. 后端 API 服务 (Flask + Gunicorn)
@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: blog-backend
+    container_name: aeronote-backend
     restart: unless-stopped
     depends_on:
       - db
@@ -55,7 +55,7 @@ services:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
     networks:
-      - blog-network
+      - aeronote-network
 
   # ----------------------------------------------------
   # 3. 前端与网关代理 (Nginx + React SPA)
@@ -64,7 +64,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: blog-frontend
+    container_name: aeronote-frontend
     restart: unless-stopped
     depends_on:
       - backend
@@ -72,12 +72,12 @@ services:
       # 外部访问的主端口 (默认映射宿主机 80 端口，可通过 .env 覆盖)
       - "${FRONTEND_PORT:-80}:80"
     networks:
-      - blog-network
+      - aeronote-network
 
 volumes:
   db_data:
     driver: local
 
 networks:
-  blog-network:
+  aeronote-network:
     driver: bridge

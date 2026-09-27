@@ -27,9 +27,9 @@ export const Home: React.FC = () => {
   const [siteTitle, setSiteTitle] = useState(() => {
     try {
       const cached = localStorage.getItem('blog_config');
-      if (cached) return JSON.parse(cached).website_title || '需要哈气的纸飞机';
+      if (cached) return JSON.parse(cached).website_title || 'AeroNote';
     } catch {}
-    return '需要哈气的纸飞机';
+    return 'AeroNote';
   });
 
   const [siteSubtitle, setSiteSubtitle] = useState(() => {
@@ -61,7 +61,7 @@ export const Home: React.FC = () => {
       if (cfg.homepage_bg !== undefined) setHomepageBg(cfg.homepage_bg || '');
       localStorage.setItem('blog_config', JSON.stringify(cfg));
     }).catch(console.error);
-    document.title = '首页 - 需要哈气的纸飞机';
+    document.title = '首页 - AeroNote';
   }, []);
 
   // 筛选条件变化时，重置文章列表并重新拉取第一页
