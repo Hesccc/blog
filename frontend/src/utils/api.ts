@@ -531,6 +531,31 @@ export const api = {
     return apiFetch(`/api/manage/backups/${encodeURIComponent(filename)}`, { method: 'DELETE' });
   },
 
+  adminDownloadBackup: async (filename: string): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch(`/api/manage/backups/download/${encodeURIComponent(filename)}`, {
+      method: 'GET',
+      headers,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ msg: `下载请求失败 (${response.status})` }));
+      throw new Error(err.msg || `下载失败 (${response.status})`);
+    }
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(link);
+  },
+
   adminExportMarkdown: (): Promise<{ msg: string; filename: string; download_url: string }> => {
     return apiFetch('/api/manage/backups/export/markdown', { method: 'POST' });
   },

@@ -155,11 +155,15 @@ def download_backup_file(filename: str):
     if not target_path.is_file():
         return jsonify({'msg': '备份文件不存在或已被删除'}), 404
 
-    return send_file(
+    mimetype = 'application/zip' if clean_name.lower().endswith('.zip') else 'application/octet-stream'
+    response = send_file(
         str(target_path),
         as_attachment=True,
-        download_name=clean_name
+        download_name=clean_name,
+        mimetype=mimetype
     )
+    response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
+    return response
 
 
 @api_backup.route('/api/manage/backups/<filename>', methods=['DELETE'])

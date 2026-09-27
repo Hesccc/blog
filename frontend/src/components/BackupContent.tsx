@@ -5,6 +5,7 @@ export const BackupContent: React.FC = () => {
   const [backups, setBackups] = useState<BackupFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState<'success' | 'error'>('success');
 
@@ -67,6 +68,19 @@ export const BackupContent: React.FC = () => {
       setBackups(prev => prev.filter(b => b.filename !== filename));
     } catch (err: unknown) {
       showMsg((err as Error).message || '删除备份失败', 'error');
+    }
+  };
+
+  // 安全带鉴权下载备份文件
+  const handleDownload = async (filename: string) => {
+    setDownloading(filename);
+    try {
+      await api.adminDownloadBackup(filename);
+      showMsg(`备份「${filename}」已开始下载`);
+    } catch (err: unknown) {
+      showMsg((err as Error).message || '下载备份失败', 'error');
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -337,14 +351,15 @@ export const BackupContent: React.FC = () => {
                     <td style={{ fontSize: '0.84rem', color: 'var(--admin-text-3)' }}>{b.created_at}</td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                        <a
-                          href={b.download_url}
+                        <button
+                          type="button"
                           className="admin-btn admin-btn-secondary admin-btn-sm"
-                          download
+                          onClick={() => handleDownload(b.filename)}
+                          disabled={downloading === b.filename}
                           title="下载到本地"
                         >
-                          下载
-                        </a>
+                          {downloading === b.filename ? '下载中…' : '下载'}
+                        </button>
                         {(b.type === 'database' || b.filename.endsWith('.sql')) && (
                           <button
                             type="button"

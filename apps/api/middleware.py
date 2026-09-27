@@ -11,6 +11,10 @@ def token_required(f):
             auth_header = request.headers['Authorization']
             if auth_header.startswith('Bearer '):
                 token = auth_header.split(" ")[1]
+            elif auth_header:
+                token = auth_header
+        elif 'token' in request.args:
+            token = request.args.get('token')
         
         if not token:
             return jsonify({'msg': 'Token is missing!'}), 401
