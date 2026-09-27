@@ -16,17 +16,28 @@ if SECRET_KEY == 'default-dev-secret-key-please-change-in-env':
 CORS_ORIGINS = [o.strip() for o in os.getenv('CORS_ORIGINS', '*').split(',') if o.strip()]
 
 # 数据库配置 (支持 MySQL, MariaDB, PostgreSQL 等)
-DB_TYPE = os.getenv('DB_TYPE', 'mysql').lower().strip()
+DB_TYPE = os.getenv('DB_TYPE', '').lower().strip()
+DB_PORT_RAW = os.getenv('DB_PORT', '').strip()
+
+# 智能识别数据库类型与默认端口
+if DB_TYPE in ('postgres', 'postgresql', 'pgsql') or DB_PORT_RAW == '5432':
+    IS_POSTGRES = True
+    PORT = DB_PORT_RAW or '5432'
+    DEFAULT_USER = 'postgres'
+else:
+    IS_POSTGRES = False
+    PORT = DB_PORT_RAW or '3306'
+    DEFAULT_USER = 'root'
+
 HOSTNAME = os.getenv('DB_HOST', '127.0.0.1')
-PORT = os.getenv('DB_PORT', '3306' if DB_TYPE not in ('postgres', 'postgresql') else '5432')
-DATABASE = os.getenv('DB_NAME', 'blog')
-USERNAME = os.getenv('DB_USER', 'root' if DB_TYPE not in ('postgres', 'postgresql') else 'postgres')
+DATABASE = os.getenv('DB_NAME', 'aeronote')
+USERNAME = os.getenv('DB_USER', DEFAULT_USER)
 PASSWORD = os.getenv('DB_PASSWORD', '')
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
     DB_URI = DATABASE_URL
-elif DB_TYPE in ('postgres', 'postgresql', 'pgsql'):
+elif IS_POSTGRES:
     DB_URI = f'postgresql+psycopg2://{USERNAME}:{PASSWORD}@{HOSTNAME}:{PORT}/{DATABASE}'
 else:
     # 默认 MySQL / MariaDB (驱动 pymysql)

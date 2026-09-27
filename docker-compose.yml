@@ -24,7 +24,10 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-aeronote_password}
     ports:
-      - "${DB_PORT:-3306}:3306"
+      # 如果使用 MySQL / MariaDB，请将端口映射切换为:
+      # - "${DB_PORT:-3306}:3306"
+      # 如果使用 PostgreSQL:
+      - "${DB_PORT:-5432}:5432"
     volumes:
       # - ./data/mysql:/var/lib/mysql
       # 如果使用 PostgreSQL，请将挂载路径切换为:
@@ -48,6 +51,8 @@ services:
       - .env
     environment:
       - DB_HOST=db
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_TYPE=${DB_TYPE:-postgres}
       - FLASK_ENV=production
     ports:
       # 外部访问的主端口 (默认映射宿主机 80 端口，可通过 .env 的 FRONTEND_PORT 覆盖)

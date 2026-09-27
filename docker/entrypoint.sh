@@ -8,18 +8,37 @@ echo "=========================================="
 echo " Starting AeroNote All-in-One Service"
 echo "=========================================="
 
-# 等待数据库就绪（解决容器编排冷启动时数据库未完成初始化的偶发竞争问题）
+# 确保无残留 sites-enabled 配置导致 default_server 重复冲突
+rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/*
+
+# 等待数据库就绪（支持 MySQL/MariaDB 3306 与 PostgreSQL 5432 双端口自动适配探测）
 if [ -n "$DB_HOST" ]; then
-    PORT="${DB_PORT:-3306}"
-    echo "Checking database connection at $DB_HOST:$PORT..."
+    if [ -n "$DB_PORT" ]; then
+        TARGET_PORTS=("$DB_PORT")
+    elif [ "$DB_TYPE" = "postgres" ] || [ "$DB_TYPE" = "postgresql" ]; then
+        TARGET_PORTS=(5432 3306)
+    else
+        TARGET_PORTS=(3306 5432)
+    fi
+
+    echo "Checking database connection at $DB_HOST (testing ports: ${TARGET_PORTS[*]})..."
+    DB_CONNECTED=false
     for i in {1..30}; do
-        if python -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('$DB_HOST', int('$PORT'))); s.close()" 2>/dev/null; then
-            echo "Database connection is ready!"
-            break
-        fi
+        for P in "${TARGET_PORTS[@]}"; do
+            if python -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('$DB_HOST', int('$P'))); s.close()" 2>/dev/null; then
+                echo "Database connection is ready on $DB_HOST:$P!"
+                export DB_PORT=$P
+                DB_CONNECTED=true
+                break 2
+            fi
+        done
         echo "Waiting for database to accept connections ($i/30)..."
         sleep 1
     done
+
+    if [ "$DB_CONNECTED" = false ]; then
+        echo "Warning: Database did not respond within 30 seconds, proceeding anyway..."
+    fi
 fi
 
 # 1. 启动 Gunicorn 监听内部端口 127.0.0.1:5000

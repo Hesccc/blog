@@ -48,9 +48,9 @@ COPY main.py .
 # 拷贝阶段 1 构建的前端静态产物至 Nginx 静态目录
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 
-# 拷贝并配置 Nginx 与容器启动入口脚本 (同时放入 conf.d 与 sites-enabled)
+# 拷贝并配置 Nginx 与容器启动入口脚本 (只放 conf.d，彻底移除 sites-enabled 防止重复 default_server 崩溃)
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-RUN ln -sf /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default
+RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/*
 COPY docker/entrypoint.sh /app/entrypoint.sh
 
 # 消除 Windows 下可能存在的 CRLF 换行符并赋予可执行权限
