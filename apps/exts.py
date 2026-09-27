@@ -11,22 +11,39 @@ def init_exts(app):
     db.init_app(app=app)
     migrate.init_app(app=app, db=db)
 
-    # 自动创建表与初始化数据
+    # 自动创建表与初始化数据 (带重试保护，避免冷启动数据库瞬时不可达导致 Gunicorn worker 崩溃)
     with app.app_context():
-        # 确保模型已经加载
-        from apps.models.model import Config, User, Categories, Tags, Posts
-        from apps.models.oss_image import OssImage  # noqa: F401 — 确保 oss_images 表被创建
-        from sqlalchemy import text
-        db.create_all()
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
 
-        # 兼容老库字段升级 (password 升级到 255 字节，content 升级为 LONGTEXT，新增 summary 摘要列)
+        initialized = False
+        for attempt in range(1, 11):
+            try:
+                from apps.models.model import Config, User, Categories, Tags, Posts
+                from apps.models.oss_image import OssImage  # noqa: F401
+                from sqlalchemy import text
+                db.create_all()
+                initialized = True
+                break
+            except Exception as e:
+                logger.warning(f"Database connection attempt {attempt}/10 failed: {e}")
+                time.sleep(2)
+
+        if not initialized:
+            logger.error("Could not initialize database on startup. Workers will run in degraded mode.")
+            return
+
+        # 仅针对 MySQL 方言执行历史老库升级
         try:
-            db.session.execute(text('ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL'))
-            db.session.execute(text('ALTER TABLE posts MODIFY COLUMN content LONGTEXT'))
-            cols = [c[0] for c in db.session.execute(text('DESCRIBE posts')).fetchall()]
-            if 'summary' not in cols:
-                db.session.execute(text('ALTER TABLE posts ADD COLUMN summary VARCHAR(600) NULL'))
-            db.session.commit()
+            bind = db.session.get_bind()
+            if bind and bind.dialect.name == 'mysql':
+                db.session.execute(text('ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL'))
+                db.session.execute(text('ALTER TABLE posts MODIFY COLUMN content LONGTEXT'))
+                cols = [c[0] for c in db.session.execute(text('DESCRIBE posts')).fetchall()]
+                if 'summary' not in cols:
+                    db.session.execute(text('ALTER TABLE posts ADD COLUMN summary VARCHAR(600) NULL'))
+                db.session.commit()
         except Exception:
             db.session.rollback()
 
@@ -90,8 +107,10 @@ def init_exts(app):
                     update_time=datetime.now(),
                     deleted=0
                 )
-                db.session.add(hello_post)
-
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                logger.warning(f"种子数据写入告警: {e}")
+                db.session.rollback()
 
 
