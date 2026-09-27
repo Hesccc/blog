@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../utils/api';
 import { AdminLayout } from '../components/AdminLayout';
-import { BackupContent } from '../components/BackupContent';
 
 interface SettingTab {
   id: string;
@@ -101,18 +100,6 @@ const TABS: SettingTab[] = [
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-        </svg>
-      ),
-    },
-    {
-      id: 'backup',
-      name: '备份与灾备',
-      desc: '全站数据、Markdown、OSS 图片与数据库一键备份',
-      icon: (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
       ),
     },
@@ -1210,15 +1197,8 @@ export const AdminSettings: React.FC = () => {
                 </div>
               )}
 
-              {/* Pane: Backup & Disaster Recovery */}
-              {activeTab === 'backup' && (
-                <div className="settings-pane active" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <BackupContent />
-                </div>
-              )}
-
               {/* Action Save Bar (仅常规表单 Tab 展现) */}
-              {!['ai-scheduler', 'ai-prompts', 'open-api', 'backup'].includes(activeTab) && (
+              {!['ai-scheduler', 'ai-prompts', 'open-api'].includes(activeTab) && (
                 <div className="settings-pane-footer">
                   <button
                     type="submit"
