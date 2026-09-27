@@ -26,13 +26,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_HOST=127.0.0.1 \
     FLASK_PORT=5000
 
-# 安装系统运行级依赖与 Nginx
+# 安装系统运行级依赖与 Nginx，并移除 Debian 默认自带的欢迎页面与站点
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     gcc \
     libffi-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /var/www/html/*
 
 # 安装后端依赖 (利用 Docker 缓存层)
 COPY pyproject.toml .
@@ -47,8 +48,9 @@ COPY main.py .
 # 拷贝阶段 1 构建的前端静态产物至 Nginx 静态目录
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 
-# 拷贝并配置 Nginx 与容器启动入口脚本
+# 拷贝并配置 Nginx 与容器启动入口脚本 (同时放入 conf.d 与 sites-enabled)
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+RUN ln -sf /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default
 COPY docker/entrypoint.sh /app/entrypoint.sh
 
 # 消除 Windows 下可能存在的 CRLF 换行符并赋予可执行权限
