@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useTransition } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
 import type { Post } from '../utils/api';
 import { updateFavicon } from '../utils/favicon';
@@ -14,6 +14,7 @@ import {
   IconMoon,
   IconFeather,
   IconClose,
+  IconMenu,
   IconArrowRight,
   IconCalendar,
   IconBookOpen,
@@ -119,6 +120,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
 
   // Fetch all posts once when search is opened
   const handleOpenSearch = () => {
+    setMobileMenuOpen(false);
     setShowSearch(true);
     setSearchQuery('');
     setSearchResults([]);
@@ -159,18 +161,39 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
     });
   }, [searchQuery, allPosts]);
 
-  // Handle Close Search on Escape Key
+  const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // 路由变化时自动关闭移动端菜单
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // 打开移动端抽屉时禁止背景滚动
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
+  // Handle Close Search or Mobile Menu on Escape Key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowSearch(false);
+        setMobileMenuOpen(false);
       }
     };
-    if (showSearch) {
+    if (showSearch || mobileMenuOpen) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSearch]);
+  }, [showSearch, mobileMenuOpen]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -260,10 +283,71 @@ export const Layout: React.FC<LayoutProps> = ({ children, hero }) => {
               >
                 {theme === 'light' ? <IconMoon size={16} /> : <IconSun size={16} />}
               </button>
+
+              {/* Mobile Menu Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(prev => !prev)}
+                className="nav-action-btn mobile-menu-btn"
+                aria-label={mobileMenuOpen ? '关闭菜单' : '打开菜单'}
+                title={mobileMenuOpen ? '关闭菜单' : '打开菜单'}
+              >
+                {mobileMenuOpen ? <IconClose size={17} /> : <IconMenu size={17} />}
+              </button>
             </div>
           </div>
         </div>
       </nav>
+
+      {/* Mobile Navigation Drawer */}
+      <div className={`mobile-nav-drawer ${mobileMenuOpen ? 'is-open' : ''}`}>
+        <div className="mobile-nav-backdrop" onClick={() => setMobileMenuOpen(false)} />
+        <div className="mobile-nav-content">
+          <div className="mobile-nav-header">
+            <span className="mobile-nav-title">快速导航</span>
+            <button
+              type="button"
+              className="mobile-nav-close"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="关闭"
+            >
+              <IconClose size={18} />
+            </button>
+          </div>
+          <ul className="mobile-nav-list">
+            <li>
+              <NavLink to="/" end className={({ isActive }) => isActive ? 'mobile-nav-link active' : 'mobile-nav-link'} onClick={() => setMobileMenuOpen(false)}>
+                <span className="mobile-nav-icon"><IconHome size={18} /></span>
+                <span className="mobile-nav-text">首页</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/archives" className={({ isActive }) => isActive ? 'mobile-nav-link active' : 'mobile-nav-link'} onClick={() => setMobileMenuOpen(false)}>
+                <span className="mobile-nav-icon"><IconArchive size={18} /></span>
+                <span className="mobile-nav-text">文章归档</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/categories" className={({ isActive }) => isActive ? 'mobile-nav-link active' : 'mobile-nav-link'} onClick={() => setMobileMenuOpen(false)}>
+                <span className="mobile-nav-icon"><IconFolder size={18} /></span>
+                <span className="mobile-nav-text">专题分类</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/tags" className={({ isActive }) => isActive ? 'mobile-nav-link active' : 'mobile-nav-link'} onClick={() => setMobileMenuOpen(false)}>
+                <span className="mobile-nav-icon"><IconTag size={18} /></span>
+                <span className="mobile-nav-text">标签聚合</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/about" className={({ isActive }) => isActive ? 'mobile-nav-link active' : 'mobile-nav-link'} onClick={() => setMobileMenuOpen(false)}>
+                <span className="mobile-nav-icon"><IconUser size={18} /></span>
+                <span className="mobile-nav-text">关于作者</span>
+              </NavLink>
+            </li>
+          </ul>
+        </div>
+      </div>
 
       {/* Hero Section if available */}
       {hero}

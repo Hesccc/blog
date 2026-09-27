@@ -44,6 +44,7 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ activeTab = 'c
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catDesc, setCatDesc] = useState('');
+  const [catPriority, setCatPriority] = useState<number>(0);
   const [editingCatId, setEditingCatId] = useState<number | null>(null);
 
   const [tagName, setTagName] = useState('');
@@ -72,14 +73,14 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ activeTab = 'c
     if (!catName || !catSlug) { flash('分类名称和简称不能为空', true); return; }
     try {
       if (editingCatId) {
-        await api.adminUpdateCategory(editingCatId, { name: catName, slug: catSlug, description: catDesc });
+        await api.adminUpdateCategory(editingCatId, { name: catName, slug: catSlug, description: catDesc, priority: catPriority });
         flash('分类修改成功');
         setEditingCatId(null);
       } else {
-        await api.adminCreateCategory({ name: catName, slug: catSlug, description: catDesc });
+        await api.adminCreateCategory({ name: catName, slug: catSlug, description: catDesc, priority: catPriority });
         flash('分类创建成功');
       }
-      setCatName(''); setCatSlug(''); setCatDesc('');
+      setCatName(''); setCatSlug(''); setCatDesc(''); setCatPriority(0);
       fetchData();
     } catch (e: unknown) {
       flash((e as Error).message || '操作失败', true);
@@ -91,6 +92,7 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ activeTab = 'c
     setCatName(cat.name);
     setCatSlug(cat.slug);
     setCatDesc(cat.description || '');
+    setCatPriority(cat.priority ?? 0);
   };
 
   const handleDeleteCategory = async (id: number) => {
@@ -205,6 +207,20 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ activeTab = 'c
                     <input type="text" value={catDesc} onChange={e => setCatDesc(e.target.value)} className="admin-form-control" placeholder="可选，分类核心定位说明" />
                   </div>
                   <div className="admin-settings-row">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label className="admin-form-label">排序优先级 (权重)</label>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-3)' }}>数字越大越靠前展示，默认 0</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={catPriority}
+                      onChange={e => setCatPriority(parseInt(e.target.value, 10) || 0)}
+                      className="admin-form-control"
+                      placeholder="如：10"
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: '0.88rem' }}
+                    />
+                  </div>
+                  <div className="admin-settings-row">
                     <label className="admin-form-label">专属确定性 Emoji 标识预览</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0.85rem', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-border)', borderRadius: 8 }}>
                       <span style={{ fontSize: '1.5rem' }}>{getDeterministicEmoji(catName)}</span>
@@ -216,7 +232,7 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ activeTab = 'c
                       {editingCatId ? '保存修改' : '创建分类'}
                     </button>
                     {editingCatId && (
-                      <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => { setEditingCatId(null); setCatName(''); setCatSlug(''); setCatDesc(''); }}>
+                      <button type="button" className="admin-btn admin-btn-secondary admin-btn-sm" onClick={() => { setEditingCatId(null); setCatName(''); setCatSlug(''); setCatDesc(''); setCatPriority(0); }}>
                         取消
                       </button>
                     )}
@@ -288,7 +304,12 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ activeTab = 'c
                         {getDeterministicEmoji(cat.name)}
                       </span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="admin-tag-name" style={{ fontWeight: 600, color: 'var(--admin-text-1)' }}>{cat.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span className="admin-tag-name" style={{ fontWeight: 600, color: 'var(--admin-text-1)' }}>{cat.name}</span>
+                          <span style={{ fontSize: '0.72rem', padding: '0.1rem 0.45rem', borderRadius: 4, background: 'var(--admin-input-bg)', color: 'var(--admin-text-2)', fontFamily: 'var(--font-mono)' }}>
+                            权重: {cat.priority ?? 0}
+                          </span>
+                        </div>
                         <div className="admin-tag-meta" style={{ fontSize: '0.75rem', color: 'var(--admin-text-3)' }}>/{cat.slug} {cat.description ? `· ${cat.description}` : ''}</div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>

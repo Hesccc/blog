@@ -243,7 +243,8 @@ def get_categories():
         'slug': c.slug,
         'description': c.description,
         'color': c.color,
-        'parent_id': c.parent_id
+        'parent_id': c.parent_id,
+        'priority': c.priority or 0
     } for c in categories])
 
 @api_posts.route('/api/tags', methods=['GET'])
@@ -626,6 +627,7 @@ def manage_create_category():
     description = data.get('description', '')
     color = data.get('color', '#41baff')
     parent_id = data.get('parent_id', 0)
+    priority = data.get('priority', 0)
     
     if not name or not slug:
         return jsonify({'msg': 'Name and slug are required!'}), 400
@@ -635,12 +637,18 @@ def manage_create_category():
     if exists:
         return jsonify({'msg': 'Category slug already exists!'}), 400
         
+    try:
+        priority_val = int(priority) if priority is not None else 0
+    except (ValueError, TypeError):
+        priority_val = 0
+
     cat = Categories(
         name=name,
         slug=slug,
         description=description,
         color=color,
         parent_id=parent_id,
+        priority=priority_val,
         deleted=0,
         create_time=datetime.now(),
         update_time=datetime.now()
@@ -653,7 +661,8 @@ def manage_create_category():
         'slug': cat.slug,
         'description': cat.description,
         'color': cat.color,
-        'parent_id': cat.parent_id
+        'parent_id': cat.parent_id,
+        'priority': cat.priority or 0
     }), 201
 
 @api_posts.route('/api/manage/categories/<int:cat_id>', methods=['PUT'])
@@ -681,6 +690,11 @@ def manage_update_category(cat_id):
         cat.color = color
     if parent_id is not None:
         cat.parent_id = parent_id
+    if 'priority' in data:
+        try:
+            cat.priority = int(data['priority']) if data['priority'] is not None else 0
+        except (ValueError, TypeError):
+            cat.priority = 0
         
     cat.update_time = datetime.now()
     db.session.commit()
@@ -690,7 +704,8 @@ def manage_update_category(cat_id):
         'slug': cat.slug,
         'description': cat.description,
         'color': cat.color,
-        'parent_id': cat.parent_id
+        'parent_id': cat.parent_id,
+        'priority': cat.priority or 0
     })
 
 @api_posts.route('/api/manage/categories/<int:cat_id>', methods=['DELETE'])

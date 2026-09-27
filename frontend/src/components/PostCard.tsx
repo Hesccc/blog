@@ -17,7 +17,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   });
 
   // 优先展示 AI 生成的 summary 摘要字段，其次 fallback 到经过专业清洗的文本
-  const summary = cleanMarkdownSummary(post.summary || post.meta_description || post.content, 110);
+  const summary = cleanMarkdownSummary(post.summary || post.meta_description || post.content, 180);
 
   const wordCount = post.word_count !== undefined ? post.word_count : (post.content ? Math.ceil(post.content.length / 2) : 0);
   const readMinutes = Math.max(1, Math.ceil(wordCount / 300));

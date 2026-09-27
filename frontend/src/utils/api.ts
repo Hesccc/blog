@@ -36,6 +36,7 @@ export interface Category {
   description: string;
   color: string;
   parent_id: number;
+  priority?: number;
 }
 
 export interface Tag {
@@ -299,14 +300,14 @@ export const api = {
   },
 
   // Admin Categories & Tags
-  adminCreateCategory: (cat: { name: string; slug: string; description?: string; color?: string }) => {
+  adminCreateCategory: (cat: { name: string; slug: string; description?: string; color?: string; priority?: number }) => {
     return apiFetch('/api/manage/categories', {
       method: 'POST',
       body: JSON.stringify(cat),
     });
   },
 
-  adminUpdateCategory: (id: number, cat: { name?: string; slug?: string; description?: string; color?: string }) => {
+  adminUpdateCategory: (id: number, cat: { name?: string; slug?: string; description?: string; color?: string; priority?: number }) => {
     return apiFetch(`/api/manage/categories/${id}`, {
       method: 'PUT',
       body: JSON.stringify(cat),
